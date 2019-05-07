@@ -498,14 +498,16 @@ of features and one new feature more does not add lot of new signal.
 iwlearn is only tested for Python 2 (we use Python 2.7). It uses MongoDB as a persistence layer, and Scikit-Learn,
 Tensorflow and Keras as ML algorithms. 
 
-To try the tutoral, you are better to use your local MongoDB instance, which can be installed like this:
+```bash
+pip install iwlearn
+```
+
+To try the tutoral [https://github.com/Immowelt/iwlearn/tree/master/tutorial], you should use your local 
+MongoDB instance, which can be installed like this:
 ```bash
 mkdir /tmp/mongo
 sudo docker run -d -p 27017:27017 -v /tmp/mongo:/data/db mongo
 ```
-
-### Installation using pip
-TBD
 
 ## Tutorial
 Throughout this tutorial we will use the following example. We need to predict, whether a user is interested in 
