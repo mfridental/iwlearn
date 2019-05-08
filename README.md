@@ -1,20 +1,21 @@
-# Immowelt machine learning framework
+# Machine Learning for the real world
 
-iwlearn captures all the best practices and lessons learned we had so far while creating Machine Learning models. 
-It is equally suitable for use with old-school ML using scikit-learn models, as well as with
-the deep learning with Keras and Tensorflow. It is best suitable for classification and regression scenarios, but
-you can consider using parts of it (or, better, extend it) also to support unsupervised learning or GANs, etc.
+* Begin a Big Data project with defining the business goals and measuring metrics to be improved, not with downloading 
+some CSV data and launching a Jupiter notebook.
+* Avoid disconnect between data scientists and software developers / devops.
+* Deploy a solid Machine Learning infrastructure into production even before you start training your first model.
+* Complement the algorithms from Tensorflow, Keras and Scikit-Learn with the solid software-engineering
+practices required to deploy, operate, monitor and update ML-based products.
+* Detect frequent data problems (missing data, skewed datasets, noisy features, etc)
 
-Our framework is conceived to be a tool:
-* giving you ready-to-use building blocks codifying tedious tasks that are otherwise had to be developed over and 
-over again;
-* gently pushing you to architectural design decisions to make Machine Learning that can be better evaluated, 
-better monitored, and better reproduced;
-* but at the same time allowing you to access all underlying layers down to the bare metal, even though
-we have already made prerequisitions to utilize your hardware as good as possible;
-* and last but not least, allowing you to start using data-based rules or AI models as quickly and easy as possible.
+We call this **Production First Machine Learning**
 
-If this effect will be reached in the applications using iwlearn, we will consider our goal met.
+iwlearn captures all the best practices and lessons learned we had so far while creating, operating, monitoring and
+updating real-world Machine Learning models on immowelt.de, a leading German real estate marketplace.
+
+By sharing this project, we not only hope you'd avoid the mistakes we've made, but also we suggest some process 
+patterns allowing to increase the ROI of Big Data projects.
+
 
 # Contents
 
@@ -138,8 +139,6 @@ services and to put all the relevant data into a Python dictionary.
 * Create model by instantiating one of the ready models from iwlearn, or inheriting from some base model.
 * Load the training and test sets, train the model as usual
 * Deploy the model along with the unchanged features and data sources into production.
-
-**We call it "production first" ML approach.**
 
 ### Disadvantages
 * You cannot use other languages or tools for training.
