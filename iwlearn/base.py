@@ -6,6 +6,7 @@ import logging
 import os
 import sys
 from decimal import Decimal
+import time
 
 import dill
 import numpy as np
@@ -698,7 +699,10 @@ class BaseModel(BaseFeature):
         This method will be used if this model is used as a feature in the greater model. When inheriting your
         model, consider also re-implementing it according to the output shape and content of the model
         """
-        return self.predict_scores([sample])[0]
+        if self.dtype == np.object:
+            return self.predict([sample])[0]
+        else:
+            return self.predict_scores([sample])[0]
 
     def evaluate(self, dataset):
         """
@@ -835,14 +839,19 @@ class BaseRule(BaseModel):
                     kwargs[param] = row[col:col + feature._get_width()]
                 col += feature._get_width()
 
-            logging.debug('%s\t%s' %(self.__class__.__name__, kwargs))
-            prediction = self._implement_rule(**kwargs)
+            real_kwargs = {}
+            for k, v in kwargs.iteritems():
+                if isinstance(v, NonePrediction):
+                    real_kwargs[k] = None
+                else:
+                    real_kwargs[k] = v
+            logging.debug('%s\t%s' %(self.__class__.__name__, real_kwargs))
+            prediction = self._implement_rule(**real_kwargs)
             if prediction is None:
                 prediction = NonePrediction(self)
             if prediction.predictor is None:
                 prediction.set_predictor(self)
-            if prediction is not None:
-                prediction.children = kwargs
+            prediction.children = kwargs
             y_pred.append(prediction)
 
         return y_pred
@@ -919,6 +928,12 @@ class Settings(object):
     """Whether to raise exception if the dataset contains samples with not-unique entityid"""
     EnsureUniqueEntitiesInDataset = False
 
+    """If a feature gets computed, whether to log the execution time or not."""
+    LogFeatureExecutionTime = False
+
+    """Cannot get feature, whether to log the exeception or not."""
+    LogCannotGetFeatureError = True
+
 
 def create_tensor(samples, feature, preprocess=True, calculate_preprocessors=True, dtype=None):
     resultingshape = (len(samples),) + feature.output_shape
@@ -934,6 +949,9 @@ def create_tensor(samples, feature, preprocess=True, calculate_preprocessors=Tru
     X = np.full(resultingshape, BaseFeature.MISSING_VALUE, dtype=dtype)
     row = 0
 
+    if Settings.LogFeatureExecutionTime:
+        tic = time.time()
+
     for sample in samples:
         try:
             val = feature.getfromsample(sample)
@@ -941,8 +959,14 @@ def create_tensor(samples, feature, preprocess=True, calculate_preprocessors=Tru
                 val = converttonumpy(val)
             X[row] = val
         except:
-            logging.exception('Cannot get feature %s' % (feature.name, ))
+            if Settings.LogCannotGetFeatureError:
+                logging.exception('Cannot get feature %s' % (feature.name, ))
         row += 1
+
+    if Settings.LogFeatureExecutionTime:
+        toc = time.time()
+        logging.info('%s took %s total, ~%s ms/sample' % (feature.name, 1000 * (toc - tic), (1000 * (toc - tic))/len(samples)))
+
 
     logging.debug(X)
 
@@ -951,6 +975,7 @@ def create_tensor(samples, feature, preprocess=True, calculate_preprocessors=Tru
             if calculate_preprocessors:
                 preprocessor.calculate(X)
             preprocessor.process(X)
+
 
     return X
 
