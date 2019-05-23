@@ -23,6 +23,7 @@ class ThreadSafeDataSource(BaseDataSource):
         self.close_client: lambda yourClient: yourClient.close()
     """
     clients = dict()
+    MAX_THREADS = 100
 
     def __init__(self):
         BaseDataSource.__init__(self)
@@ -54,7 +55,10 @@ class ThreadSafeDataSource(BaseDataSource):
         thread_id = current_thread().ident
 
         if thread_id not in self.clients:
-            self.clients[thread_id] = dict()
+            if len(self.clients) < self.__class__.MAX_THREADS:
+                self.clients[thread_id] = dict()
+            else:
+                raise Exception('%r tries to open too many connections' % self)
         if connection_string not in self.clients[thread_id]:
             self.clients[thread_id][connection_string] = self.create_client(connection_string)
         logging.debug('get_client #clients: %s' % (len(self.clients[thread_id]),))
