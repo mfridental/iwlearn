@@ -68,10 +68,10 @@ def _convert_data_for_mongo(data):
             result[str(key).replace('.', '_')] = _convert_data_for_mongo(value)
         return result
     if isinstance(data, np.ndarray):
-        return data.tolist()
+        return _convert_data_for_mongo(data.tolist())
     if isinstance(data, np.float32):
         return float(data)
-    if isinstance(data, list):
+    if isinstance(data, list) or isinstance(data, tuple):
         return [_convert_data_for_mongo(x) for x in data]
     if isinstance(data, Decimal):
         return float(data)
@@ -97,7 +97,7 @@ def find_latest_sample(sampletype, entityid):
         coll = mongoclient()['IWLearn'][collectionname(sampletype)]
         docs = list(coll.find({'entityid': entityid}).sort('created', DESCENDING).limit(1))
         if len(docs) == 1:
-            return sampletype.fromjson(docs[0])
+            return sampletype.fromjson(_convert_document_for_python(docs[0]))
     logging.warning('Caching for %s, %s not available' % (sampletype.__name__, entityid))
     return None
 
@@ -108,6 +108,27 @@ def find_samples(sampletype, *args, **kwargs):
         raise Exception('Include entityid into projection')
     samples = [sampletype.fromjson(_convert_document_for_python(document)) for document in coll.find(*args, **kwargs)]
     return samples
+
+
+def find_samples_generator(sampletype, batch_size=1000, *args, **kwargs):
+    coll = mongoclient()['IWLearn'][collectionname(sampletype)]
+    if 'projections' in kwargs and 'entityid' not in kwargs['projection']:
+        raise Exception('Include entityid into projection')
+    cursor = coll.find(*args, **kwargs)
+    samples = []
+    batch_number = 0
+    for doc in cursor:
+        samples.append(sampletype.fromjson(_convert_document_for_python(doc)))
+        if len(samples) == batch_size:
+            logging.info('start %s batch with %s samples' % (batch_number, len(samples)))
+            for sample in samples:
+                yield sample
+            samples = []
+            batch_number += 1
+
+    logging.info('start %s batch with %s samples' % (batch_number, len(samples)))
+    for sample in samples:
+        yield sample
 
 
 def insert_sample(sample):
@@ -141,11 +162,12 @@ def update_samples(samples, updatedoc):
     if len(samples) == 0:
         return
     prepared_doc = _convert_data_for_mongo(updatedoc)
-    coll = mongoclient()['IWLearn'][collectionname(samples[0].__class__)]
-    filter = {'_id': {'$in': [x.id for x in samples]}}
-    result = coll.update_many(filter=filter, update=prepared_doc)
-    if not result.acknowledged or result.matched_count != len(samples):
-        raise Exception('Cannot update (all) samples, %d' % result.matched_count)
+    for collname in set([collectionname(x.__class__) for x in samples]):
+        coll = mongoclient()['IWLearn'][collname]
+        filter = {'_id': {'$in': [x.id for x in samples if collectionname(x.__class__) == collname]}}
+        result = coll.update_many(filter=filter, update=prepared_doc)
+        if not result.acknowledged or result.matched_count != len(samples):
+            raise Exception('Cannot update (all) samples, %d' % result.matched_count)
 
 
 def insert_samples(samples):
@@ -172,11 +194,15 @@ class MongoUriError(Exception):
         super(MongoUriError, self).__init__(message)
 
 
-def insert_check(prediction, sample):
-    if prediction is not None and isinstance(prediction, BasePrediction):
-        [insert_check(child, sample) for name, child in prediction.children.iteritems()]
+def insert_check(prediction, sample, inserted=None):
+    if inserted is None:
+        inserted = []
 
     if prediction is not None and isinstance(prediction, BasePrediction):
+        if prediction in inserted:
+            return
+        inserted.append(prediction)
+        [insert_check(child, sample, inserted) for name, child in prediction.children.iteritems()]
 
         data = copy.deepcopy(vars(prediction))
 
@@ -198,20 +224,26 @@ def insert_check(prediction, sample):
         coll = mongoclient()['IWLearn'][collection_name]
         logging.debug(coll)
 
-        try:
-            insert_data = coll.insert_one(prepared_doc)
-        except Exception as e:
-            logging.exception(e.message)
+        insert_data = coll.insert_one(prepared_doc)
         if isinstance(insert_data, results.InsertOneResult) and insert_data.acknowledged:
             inserted_id = insert_data.inserted_id
             if 'predictor' in data:
                 logging.info('persisted %s %s %s' % (collection_name, data['predictor'], inserted_id))
             else:
                 logging.info('persisted %s %s' % (collection_name, inserted_id))
-
         else:
             raise Exception('Prediction %d %s could not be persisted' % (sample, prepared_doc))
 
+def update_checks_of_samples(samples, updatedoc):
+    if len(samples) == 0:
+        return
+    prepared_doc = _convert_data_for_mongo(updatedoc)
+    for collname in set([x.name.replace('Sample', 'Check') + 's' for x in samples]):
+        coll = mongoclient()['IWLearn'][collname]
+        filter = {'sample_id': {'$in': [x.id for x in samples if x.name.replace('Sample', 'Check') + 's' == collname]}}
+        result = coll.update_many(filter=filter, update=prepared_doc)
+        if not result.acknowledged:
+            raise Exception('Cannot update checks')
 
 if __name__ == "__main__":
     logging.basicConfig(stream=sys.stdout, level=logging.INFO)
