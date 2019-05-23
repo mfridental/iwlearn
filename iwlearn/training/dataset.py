@@ -25,7 +25,32 @@ from iwlearn.mongo import mongoclient
 
 class DataSet(object):
     """
-    Note that DataSet does not maintain the order of samples
+    Note that DataSet does not maintain the order of samples.
+
+    Format of self.meta:
+    {
+        "features":[
+            {
+                "dtype":"float64",
+                "top10values":[...],
+                "name":"WohnflaecheFeature",
+                "output_shape":[1]
+            },
+            ...
+        ],
+        "model_input_shape":[41],
+        "labels":[
+            {
+                "name":"TrivialFeature",
+                "output_shape":[]
+            }
+        ],
+        "sampletype":"ContactRequestsSample",
+        "numclasses":0,
+        "label_shape":[]
+    }
+
+
     """
     MAX_FILES_PER_DIR = 10000
 
@@ -348,6 +373,8 @@ class DataSet(object):
                 except StopIteration:
                     eof = True
                     break
+                except Exception as e:
+                    logging.exception(e.message)
 
             if len(samples) == 0:
                 break
@@ -856,6 +883,71 @@ class DataSet(object):
             persisters
         )
 
+    def unsafe_rewrite_dataset(self, experiment_name, X, y, sampleids):
+        if X.shape[1:] != tuple(self.meta['model_input_shape']):
+            raise Exception('X.shape %s does not correspond to dataset model_input_shape %s' % (X.shape[1:], self.meta['model_input_shape']))
+        if y.shape[1:] != tuple(self.meta['label_shape']):
+            raise Exception('y.shape %s does not correspond to dataset label shape %s' % (y.shape[1:], self.meta['label_shape']))
+        if len(X) != len(y):
+            raise Exception('Lengths of X and y do not agree, %d != %d' % (len(X), len(y)))
+
+        zip_iterator = zip(X, y, sampleids).__iter__()
+
+        part_size = self.metaparts.values()[0]['numsamples']
+        nesting = DataSet._get_optimal_nesting(len(X) / part_size)
+        feature_names = [x['name'] for x in self.meta['features']]
+        label_names = [x['name'] for x in self.meta['labels']]
+
+        class TensorCarrier(BaseSample):
+            def __init__(self, entityid, tensors):
+                BaseSample.__init__(self, entityid)
+                self.tensors = tensors
+
+        def rewritesamplefetcher():
+            one_X, one_y, one_sampleid = zip_iterator.next()
+            tensors = {}
+            for col, f in enumerate(feature_names):
+                featuremetas, _, _, _= self._getmetas(features=[f])
+                width = featuremetas[0]['output_shape']
+                if len(width) == 0:
+                    width = 1
+                else:
+                    width = width[0]
+                tensors[f] = one_X[col:col+width]
+            for col, f in enumerate(label_names):
+                _, labelmeta, _, _ = self._getmetas(label=f)
+                width = labelmeta['output_shape']
+                if len(width) == 0:
+                    tensors[f] = one_y
+                else:
+                    width = width[0]
+                    tensors[f] = one_y[col:col+width]
+            sampleid = self.get_sample_id(one_sampleid)
+            return TensorCarrier(sampleid, tensors)
+
+        def rewritetensorgetter(samples, featurename):
+            return np.stack([x.tensors[featurename] for x in samples])
+
+        newmeta = self.meta.copy()
+        for ff in newmeta['features']:
+            if len(ff['output_shape']) == 1:
+                numtop = ff['output_shape'][0]
+            else:
+                numtop = 1
+            ff['top10values'] = [Counter() for _ in xrange(0, numtop)]
+        newmeta['class_counts'] = {}
+
+        DataSet._write(
+            newmeta,
+            experiment_name,
+            feature_names,
+            label_names,
+            nesting,
+            self.meta['numclasses'],
+            part_size,
+            rewritesamplefetcher,
+            rewritetensorgetter
+        )
 
 
     def plot_data(self, bins=10, all_in_one=True, index_array=None):
