@@ -6,9 +6,9 @@ import datetime as dt
 from iwlearn import BaseSample
 
 
-from configuration import SQL_CONNECTION_STRING
-from datasources import WatchedRealEstatesDataSource
-import _DUMMY   # do not use dummy in real projects, instead:
+from tutorial.common.configuration import SQL_CONNECTION_STRING
+from tutorial.common.datasources import WatchedRealEstatesDataSource
+from tutorial.common import _DUMMY   # do not use dummy in real projects, instead:
                 # from iwlearn.datasources import CouchBaseDataSource, SQLDataSource, ...
 
 

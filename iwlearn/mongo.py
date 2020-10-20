@@ -4,6 +4,7 @@ import logging
 import datetime as dt
 import numpy as np
 import copy
+import threading
 
 from pymongo import MongoClient, DESCENDING, results
 from bson import Binary
@@ -19,18 +20,26 @@ def setmongouri(uri):
     global MONGO_URI
     MONGO_URI = uri
 
-
+_mongoclient = {}
+_mongoclientlock = threading.Lock()
 def mongoclient():
+    global _mongoclient, _mongoclientlock
     if MONGO_URI is None:
         raise Exception('Please set MONGO_URI after importing iwlearn')
 
-    return MongoClient(MONGO_URI)
+    id = threading.get_ident()
+    if id not in _mongoclient:
+        _mongoclientlock.acquire()
+        if id not in _mongoclient:
+            _mongoclient[id] = MongoClient(MONGO_URI, maxPoolSize=1)
+        _mongoclientlock.release()
 
+    return _mongoclient[id]
 
 def _convert_document_for_python(document):
     if isinstance(document, dict):
         result = dict()
-        for key, value in document.iteritems():
+        for key, value in document.items():
             result[str(key).replace('.', '_')] = _convert_document_for_python(value)
         return result
     if isinstance(document, list):
@@ -43,8 +52,6 @@ def _convert_document_for_python(document):
         tmp_datetime = dt.datetime(document.year, document.month, document.day)
         utc_datetime = timezone('UTC').localize(tmp_datetime).astimezone(timezone('Europe/Berlin')).replace(tzinfo=None)
         return dt.date(utc_datetime.year, utc_datetime.month, utc_datetime.day)
-    if isinstance(document, unicode):
-        return document.encode('utf8')
     return document
 
 
@@ -64,7 +71,7 @@ def localize_date(data):
 def _convert_data_for_mongo(data):
     if isinstance(data, dict):
         result = dict()
-        for key, value in data.iteritems():
+        for key, value in data.items():
             result[str(key).replace('.', '_')] = _convert_data_for_mongo(value)
         return result
     if isinstance(data, np.ndarray):
@@ -79,12 +86,6 @@ def _convert_data_for_mongo(data):
         return localize_datetime(data)
     if isinstance(data, dt.date):
         return localize_date(data)
-    if isinstance(data, str):
-        try:
-            return data.decode('utf8')
-        except Exception as e:
-            logging.warning(e.message)
-            return Binary(data, 0)
     return data
 
 
@@ -130,10 +131,11 @@ def find_samples_generator(sampletype, batch_size=1000, *args, **kwargs):
     for sample in samples:
         yield sample
 
-
 def insert_sample(sample):
     prepared_doc = _convert_data_for_mongo(sample.data)
-    coll = mongoclient()['IWLearn'][collectionname(sample.__class__)]
+
+    client = mongoclient()
+    coll = client['IWLearn'][collectionname(sample.__class__)]
     if '_id' not in sample.data:
         insert_data = coll.insert_one(prepared_doc)
         if isinstance(insert_data, results.InsertOneResult) and insert_data.acknowledged:
@@ -143,7 +145,6 @@ def insert_sample(sample):
             raise Exception('%r could not be inserted' % sample)
     else:
         raise Exception('Sample %r cannot be inserted, because it already has _id' % sample)
-
 
 def replace_sample(sample):
     prepared_doc = _convert_data_for_mongo(sample.data)
@@ -202,12 +203,12 @@ def insert_check(prediction, sample, inserted=None):
         if prediction in inserted:
             return
         inserted.append(prediction)
-        [insert_check(child, sample, inserted) for name, child in prediction.children.iteritems()]
+        [insert_check(child, sample, inserted) for name, child in prediction.children.items()]
 
         data = copy.deepcopy(vars(prediction))
 
         if 'children' in data:
-            data['children'] = {name: child for (name, child) in data['children'].iteritems() if
+            data['children'] = {name: child for (name, child) in data['children'].items() if
                                 not isinstance(child, BasePrediction)}
 
             if len(data['children'].keys()) == 0:
@@ -234,6 +235,7 @@ def insert_check(prediction, sample, inserted=None):
         else:
             raise Exception('Prediction %d %s could not be persisted' % (sample, prepared_doc))
 
+
 def update_checks_of_samples(samples, updatedoc):
     if len(samples) == 0:
         return
@@ -244,6 +246,7 @@ def update_checks_of_samples(samples, updatedoc):
         result = coll.update_many(filter=filter, update=prepared_doc)
         if not result.acknowledged:
             raise Exception('Cannot update checks')
+
 
 if __name__ == "__main__":
     logging.basicConfig(stream=sys.stdout, level=logging.INFO)

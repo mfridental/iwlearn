@@ -14,7 +14,7 @@ if __name__ == "__main__":
 
     train = DataSet('train-hyper')
     test = DataSet('test-hyper')
-    print 'Samples in train %d, in test %d' % (len(train), len(test))
+    print ('Samples in train %d, in test %d' % (len(train), len(test)))
 
     model = RelocationModelHyper()
 
@@ -22,8 +22,8 @@ if __name__ == "__main__":
     model.train(train)
     model.evaluate_and_print(test)
 
-    print
-    print
+    print ()
+    print ()
 
     # Now perform training with the hyperparameter optimization
     n_estimators_range = np.linspace(start=100, stop=600, num=5, dtype=int)

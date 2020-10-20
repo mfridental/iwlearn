@@ -56,7 +56,7 @@ class FilterExtremesPreprocessor(BasePreprocessor):
         """
         BasePreprocessor.__init__(self)
 
-        if not(lower_q or upper_q or min_val or max_val):
+        if not (lower_q or upper_q or min_val or max_val):
             raise Exception('At least one extreme value must be specified')
 
         if mode not in ['outer', 'inner'] and (lower_q and min_val) or (upper_q and max_val):

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-import cPickle
+import pickle
 import logging
 import os
 import sys
@@ -23,7 +23,7 @@ def get(model_id):
 
     with open(doc['filepath'], 'rb') as f:
         logging.info('load model from %s' % (doc['filepath']))
-        return cPickle.load(f)
+        return pickle.load(f)
 
 
 def commit(model, creator):
@@ -36,22 +36,16 @@ def commit(model, creator):
     if not os.path.isdir(dir):
         os.makedirs(dir)
     filepath_modelname = model._save(dir, creator)
-    logging.info('filepath_modelname %s' % (filepath_modelname, ))
+    logging.info('filepath_modelname %s' % (filepath_modelname,))
     return filepath_modelname
 
 
 def push(filepath_modelname):
-    """
-
-    :param appname:
-    :param filepath_model:
-    :param filepath_meta_infos:
-    :return:
-    """
     if filepath_modelname == '':
         raise Exception('appname is empty')
 
     copy(filepath_modelname, '/mnt/models/')
+
 
 if __name__ == "__main__":
     logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)

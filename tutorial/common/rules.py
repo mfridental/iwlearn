@@ -5,8 +5,8 @@ import datetime as dt
 
 from iwlearn import BaseRule, RulePrediction
 
-import features as ff
-from samples import RelocationUserSample
+import tutorial.common.features as ff
+from tutorial.common.samples import RelocationUserSample
 
 class RelocationRule(BaseRule):
     def __init__(self):

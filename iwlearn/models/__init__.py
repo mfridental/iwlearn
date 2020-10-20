@@ -1,2 +1,2 @@
-from based_on_sklearn import ScikitLearnModel
-from based_on_keras import BaseKerasModel, BaseKerasClassifierModel, BaseKerasRegressorModel
+from iwlearn.models.based_on_sklearn import ScikitLearnModel
+#from based_on_keras import BaseKerasModel, BaseKerasClassifierModel, BaseKerasRegressorModel

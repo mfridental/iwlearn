@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-import cPickle
+import pickle
 import logging
 import os
 import re
@@ -53,6 +53,7 @@ class DataSet(object):
 
     """
     MAX_FILES_PER_DIR = 10000
+    _test_global_remove_parts_setting = None
 
     @staticmethod
     def _getaveragedocsize(model, customclient=None):
@@ -62,7 +63,7 @@ class DataSet(object):
             client = customclient
         try:
             stats = client['IWLearn'].command('collstats', model.sampletype.__name__ + 's')
-            return stats['avgObjSize']*2.0 if 'avgObjSize' in stats else 100000
+            return stats['avgObjSize'] * 2.0 if 'avgObjSize' in stats else 100000
         finally:
             if customclient is None:
                 client.close()
@@ -136,16 +137,16 @@ class DataSet(object):
             logging.info('Determined batch_size is %d' % batch_size)
 
             if DataSet._generateImpl(
-                experiment_name,
-                model,
-                lambda: model.sampletype.fromjson(cursor.next()),
-                part_size,
-                numclasses) == 0:
-                raise Exception('Cannot generate set: no samples')
-        except Exception as e:
-            logging.error(e.message)
+                    experiment_name,
+                    model,
+                    lambda: model.sampletype.fromjson(next(cursor)),
+                    part_size,
+                    numclasses) == 0:
+                raise Exception('no samples')
+        except:
+            logging.error('Cannot generate dataset')
         finally:
-            if customclient is None and client is not None:#
+            if customclient is None and client is not None:  #
                 client.close()
 
     @staticmethod
@@ -158,12 +159,11 @@ class DataSet(object):
             if x < DataSet.MAX_FILES_PER_DIR:
                 break
             k += 1
-        L = int(ceil(log(numparts/x, 16)))
-        return [L]*(k-1)
-
+        L = int(ceil(log(numparts / x, 16)))
+        return [L] * (k - 1)
 
     @staticmethod
-    def bootstrap(experiment_name, model, samples, numclasses = None, part_size = None):
+    def bootstrap(experiment_name, model, samples, numclasses=None, part_size=None):
         """
         Generate new or extend existing dataset by bootstrapping (i.e. creating fake samples from some pre-existing
         data), and cache it on disk. The disk cache will be split in parts samplewise, each part containing only
@@ -195,21 +195,20 @@ class DataSet(object):
             nesting = DataSet._get_optimal_nesting(len(samples) / part_size)
 
         if DataSet._generateImpl(
-            experiment_name,
-            model,
-            lambda: iterator.next(),
-            part_size,
-            numclasses,
-            nesting) == 0:
+                experiment_name,
+                model,
+                lambda: next(iterator),
+                part_size,
+                numclasses,
+                nesting) == 0:
             raise Exception('Cannog generate set: no samples')
-
 
     @staticmethod
     def fname(featurename):
         return re.sub(r'[\W_]+', '', featurename) + '.npy'
 
     @staticmethod
-    def _generateImpl(experiment_name, model, samplefetcher, part_size, numclasses = None, nesting=[]):
+    def _generateImpl(experiment_name, model, samplefetcher, part_size, numclasses=None, nesting=[]):
         # only get part_size samples at a time, convert and save them to disk, then repeat
         # this is to process data sets where all samples do not fit into the RAM
 
@@ -230,7 +229,7 @@ class DataSet(object):
         else:
             os.makedirs('input/' + experiment_name)
 
-        oldfeatures = dict([(x['name'].encode('utf8'), x) for x in datasetmeta['features']])
+        oldfeatures = dict([(x['name'], x) for x in datasetmeta['features']])
         datasetmeta['features'] = []
 
         for feature in model.features:
@@ -239,22 +238,22 @@ class DataSet(object):
             else:
                 numtop = 1
             f = {
-                    'name': feature.name,
-                    'output_shape': feature.output_shape,
-                    'top10values': [Counter() for _ in xrange(0, numtop)],
-                    'dtype': str(feature.dtype)
-             }
+                'name': feature.name,
+                'output_shape': feature.output_shape,
+                'top10values': [Counter() for _ in range(0, numtop)],
+                'dtype': str(feature.dtype)
+            }
             if feature.name in oldfeatures:
                 f['top10values'] = [Counter(x) for x in oldfeatures[feature.name]['top10values']]
             datasetmeta['features'].append(f)
 
-        oldlabels = dict([(x['name'].encode('utf8'), x) for x in datasetmeta['labels']])
+        oldlabels = dict([(x['name'], x) for x in datasetmeta['labels']])
         datasetmeta['labels'] = []
         for label in model.labels:
             f = {
-                    'name': label.name,
-                    'output_shape': label.output_shape
-             }
+                'name': label.name,
+                'output_shape': label.output_shape
+            }
             datasetmeta['labels'].append(f)
 
         removed_features = set(oldfeatures.keys()).difference(set([x.name for x in model.features]))
@@ -278,7 +277,7 @@ class DataSet(object):
 
         if numclasses > 0 and 'class_counts' not in datasetmeta:
             datasetmeta['class_counts'] = {}
-        for cls in xrange(0, numclasses):
+        for cls in range(0, numclasses):
             klass = 'Class_' + str(cls)
             if klass not in datasetmeta['class_counts']:
                 datasetmeta['class_counts'][klass] = 0
@@ -359,22 +358,22 @@ class DataSet(object):
                     raise Exception('Trying to generate an empty dataset')
                 sampleid = str(sample.entityid)
                 ids.append(sampleid)
-                hashvariable.update(sampleid)
+                hashvariable.update(sampleid.encode('utf8'))
                 samples.append(sample)
                 part_size = part_size(sample)
 
-            for _ in xrange(0, part_size):
+            for _ in range(0, part_size):
                 try:
                     sample = samplefetcher()
                     sampleid = str(sample.entityid)
                     ids.append(sampleid)
-                    hashvariable.update(sampleid)
+                    hashvariable.update(sampleid.encode('utf8'))
                     samples.append(sample)
                 except StopIteration:
                     eof = True
                     break
-                except Exception as e:
-                    logging.exception(e.message)
+                except:
+                    logging.exception('cannot fetch sample')
 
             if len(samples) == 0:
                 break
@@ -433,7 +432,7 @@ class DataSet(object):
                                     if len(cntr) > 10:
                                         ff['top10values'][0] = Counter(dict(cntr.most_common(10)))
                                 elif len(ff['output_shape']) == 1:
-                                    for i in xrange(0, ff['output_shape'][0]):
+                                    for i in range(0, ff['output_shape'][0]):
                                         cntr = ff['top10values'][i]
                                         cntr.update(x[:, i])
                                         if len(cntr) > 10:
@@ -473,15 +472,15 @@ class DataSet(object):
 
                 if numclasses > 0 and len(label_names) == 1 and 'class_counts' in datasetmeta:
                     if len(x.shape) == 1:
-                        for cls in xrange(0, numclasses):
+                        for cls in range(0, numclasses):
                             klass = 'Class_' + str(cls)
                             datasetmeta['class_counts'][klass] += sum(1 for y in x if y == cls)
                     elif len(x.shape) == 2 and x.shape[1] == 1:
-                        for cls in xrange(0, numclasses):
+                        for cls in range(0, numclasses):
                             klass = 'Class_' + str(cls)
                             datasetmeta['class_counts'][klass] += sum(1 for y in x if y[0] == cls)
                     else:
-                        for cls in xrange(0, numclasses):
+                        for cls in range(0, numclasses):
                             klass = 'Class_' + str(cls)
                             datasetmeta['class_counts'][klass] += sum(x[:, cls])
 
@@ -489,7 +488,7 @@ class DataSet(object):
 
             if not os.path.isfile(partdir + '/ids.txt'):
                 with open(partdir + '/ids.txt', 'wb') as f:
-                    f.writelines([x + "\n" for x in ids])
+                    f.writelines([(x + "\n").encode('utf8') for x in ids])
 
             with open(partdir + '/part.json', 'w') as f:
                 json.dump(partmeta, f)
@@ -507,8 +506,12 @@ class DataSet(object):
                         missing = sollfeatures.difference(ist)
                         if len(missing) > 0:
                             logging.warning('%s does not contain following features: %s ' % (entry, str(missing)))
-                            x = input(
-                                'Press y to remove the part, any other key to leave it (in this case missing feature will always have missing values)')
+                            if DataSet._test_global_remove_parts_setting is not None:
+                                x = DataSet._test_global_remove_parts_setting
+                            else:
+                                x = input(
+                                    'Press y to remove the part, any other key to leave it (in this case missing feature '
+                                    'will always have missing values)')
                             if x == 'y':
                                 shutil.rmtree('input/%s/%s' % (experiment_name, entry))
         with open('input/%s/dataset_V5.json' % experiment_name, 'w') as f:
@@ -529,7 +532,7 @@ class DataSet(object):
         if 'class_counts' in datasetmeta:
             notpresent = []
             lessthancent = []
-            for k, v in datasetmeta['class_counts'].iteritems():
+            for k, v in datasetmeta['class_counts'].items():
                 if v == 0:
                     notpresent.append(str(k))
                 if v < 0.01 * totalrows:
@@ -569,8 +572,7 @@ class DataSet(object):
                     if len(scandir(entry.path)) == 0:
                         shutil.rmtree(entry.path)
 
-
-    def __init__(self, experiment_name, maxRAM = None, maxParts = None):
+    def __init__(self, experiment_name, maxRAM=None, maxParts=None):
         self.experiment_name = experiment_name
 
         self.meta = None
@@ -631,7 +633,7 @@ class DataSet(object):
                             self.average_part_size += partmeta['bytesize']
                             self.partmap_names.append(entry.path)
                     except:
-                        logging.error('Cannot load part %s' % entry.path )
+                        logging.error('Cannot load part %s' % entry.path)
                 else:
                     self._load_metaparts(entry.path)
 
@@ -642,9 +644,9 @@ class DataSet(object):
             f_file = partdir + DataSet.fname(name)
 
         x = None
-        if os.path.isfile(f_file+'.persister'):
-            with open(f_file+'.persister', 'rb') as pf:
-                persister = cPickle.load(pf)
+        if os.path.isfile(f_file + '.persister'):
+            with open(f_file + '.persister', 'rb') as pf:
+                persister = pickle.load(pf)
             x = persister.load(f_file)
         elif os.path.isfile(f_file):
             x = np.load(f_file)
@@ -652,7 +654,6 @@ class DataSet(object):
             logging.warning('%s does not contain feature %s, replacing with missing value' % (partdir, f_file))
 
         return x
-
 
     def _loadpart(self, partname):
         self.performance['totalbytesloaded'] += self.metaparts[partname]['bytesize']
@@ -664,10 +665,13 @@ class DataSet(object):
             if x is None:
                 if Settings.OnFeatureMissing == 'raise':
                     raise Exception(
-                        'Feature file %s is missing in the part %s. If you want its values to be replaced with MISSING_VALUE, set Settings.OnFeatureMissing to impute' % (ff['name'], partdir))
+                        'Feature file %s is missing in the part %s. If you want its values to be replaced with '
+                        'MISSING_VALUE, set Settings.OnFeatureMissing to impute' % (
+                        ff['name'], partdir))
                 else:
                     logging.info('Feature file %s is missing in the part %s.' % (ff['name'], partdir))
-                    x = np.full((self.metaparts[partname]['numsamples'],)+tuple(ff['output_shape']), BaseFeature.MISSING_VALUE, dtype=ff['dtype'])
+                    x = np.full((self.metaparts[partname]['numsamples'],) + tuple(ff['output_shape']),
+                                BaseFeature.MISSING_VALUE, dtype=ff['dtype'])
             feat[ff['name']] = x
 
         labe = {}
@@ -686,7 +690,7 @@ class DataSet(object):
 
     def get_sample_id(self, sample_index):
         partname, offset = self._get_part_and_offset(sample_index)
-        with open(partname+'/ids.txt', 'r') as f:
+        with open(partname + '/ids.txt', 'r') as f:
             ids = f.readlines()
             return ids[offset][:-1]
 
@@ -704,10 +708,12 @@ class DataSet(object):
 
         featuremetas, labelmeta, x_shape, y_shape = self._getmetas()
         if x_shape != self.model_input_shape:
-            raise Exception('Features of the dataset have shape %s, but model expect input shape %s' % (x_shape, self.model_input_shape))
+            raise Exception('Features of the dataset have shape %s, but model expect input shape %s' % (
+            x_shape, self.model_input_shape))
 
         if y_shape is not None and y_shape != self.label_shape:
-            raise Exception('Labels of the dataset have shape %s, but model delivers output of shape %s' % (y_shape, self.label_shape))
+            raise Exception('Labels of the dataset have shape %s, but model delivers output of shape %s' % (
+            y_shape, self.label_shape))
 
         return self.get_one_sample(index, featuremetas, labelmeta, x_shape)
 
@@ -722,9 +728,9 @@ class DataSet(object):
             if partname not in self.cache:
                 self.cache[partname] = self._loadpart(partname)
 
-            feat,labe = self.cache[partname]
+            feat, labe = self.cache[partname]
 
-        x = combine_tensors([feat[ff['name']][offset:offset+1] for ff in featuremetas], x_shape, 1)[0]
+        x = combine_tensors([feat[ff['name']][offset:offset + 1] for ff in featuremetas], x_shape, 1)[0]
         if labelmeta:
             y = labe[labelmeta['name']][offset]
 
@@ -742,7 +748,8 @@ class DataSet(object):
         else:
             featuremetas = [ff for ff in self.meta['features'] if ff['name'] in features]
             if len(featuremetas) < len(features):
-                raise Exception('Dataset %s does not contain the following features: %s' % (self.experiment_name, ','.join(set(features).difference(set([ff['name'] for ff in featuremetas])))))
+                raise Exception('Dataset %s does not contain the following features: %s' % (
+                self.experiment_name, ','.join(set(features).difference(set([ff['name'] for ff in featuremetas])))))
 
         if label is None:
             if len(self.meta['labels']) > 1:
@@ -755,7 +762,7 @@ class DataSet(object):
             labelmeta = [ff for ff in self.meta['labels'] if ff['name'] == label]
             if len(labelmeta) == 0:
                 raise Exception('Dataset does not contain label %s' % label)
-            labelmeta=labelmeta[0]
+            labelmeta = labelmeta[0]
 
         x_shape = BaseModel.calculate_shape(shapes=[ff['output_shape'] for ff in featuremetas])
         y_shape = tuple(labelmeta['output_shape']) if labelmeta is not None else None
@@ -772,14 +779,16 @@ class DataSet(object):
 
         featuremetas, labelmeta, x_shape, y_shape = self._getmetas(features, label)
         if features is None and x_shape != self.model_input_shape:
-            raise Exception('Features of the dataset have shape %s, but model expect input shape %s' % (x_shape, self.model_input_shape))
+            raise Exception('Features of the dataset have shape %s, but model expect input shape %s' % (
+            x_shape, self.model_input_shape))
 
         if len(self.meta['labels']) == 1 and y_shape != self.label_shape:
-            raise Exception('Label of the dataset has shape %s, but model delivers output of shape %s' % (y_shape, self.label_shape))
+            raise Exception('Label of the dataset has shape %s, but model delivers output of shape %s' % (
+            y_shape, self.label_shape))
 
         all_x = np.zeros((self.numsamples,) + x_shape)
         if labelmeta:
-            all_y = np.zeros((self.numsamples, )+ y_shape)
+            all_y = np.zeros((self.numsamples,) + y_shape)
 
         row = 0
         for partname in self.partmap_names[1:]:
@@ -787,9 +796,10 @@ class DataSet(object):
             numsamples = self.metaparts[partname]['numsamples']
             if self.cache:
                 self.cache[partname] = (feat, labe)
-            all_x[row:row+numsamples] = combine_tensors([feat[ff['name']] for ff in featuremetas], x_shape, numsamples)
+            all_x[row:row + numsamples] = combine_tensors([feat[ff['name']] for ff in featuremetas], x_shape,
+                                                          numsamples)
             if labelmeta:
-                all_y[row:row+numsamples] = labe[labelmeta['name']]
+                all_y[row:row + numsamples] = labe[labelmeta['name']]
             row += numsamples
 
         if labelmeta:
@@ -819,7 +829,7 @@ class DataSet(object):
             numcol = 1
             if len(f['output_shape']) > 0:
                 numcol = f['output_shape'][0]
-            for num in xrange(0, numcol):
+            for num in range(0, numcol):
                 if human_readable:
                     featmap.append(f['name'] + "_" + str(num))
                 else:
@@ -845,10 +855,10 @@ class DataSet(object):
                 self.tensors = tensors
 
         def clonesamplefetcher():
-            idx = idx_iter.next()
+            idx = next(idx_iter)
             tensors = {}
             for f in feature_names:
-                featuremetas, _, _, _= self._getmetas(features=[f])
+                featuremetas, _, _, _ = self._getmetas(features=[f])
                 X, _ = self.get_one_sample(idx, featuremetas, None, tuple(featuremetas[0]['output_shape']))
                 tensors[f] = processor(f, X)
             for f in label_names:
@@ -867,7 +877,7 @@ class DataSet(object):
                 numtop = ff['output_shape'][0]
             else:
                 numtop = 1
-            ff['top10values'] = [Counter() for _ in xrange(0, numtop)]
+            ff['top10values'] = [Counter() for _ in range(0, numtop)]
         newmeta['class_counts'] = {}
 
         DataSet._write(
@@ -885,9 +895,11 @@ class DataSet(object):
 
     def unsafe_rewrite_dataset(self, experiment_name, X, y, sampleids):
         if X.shape[1:] != tuple(self.meta['model_input_shape']):
-            raise Exception('X.shape %s does not correspond to dataset model_input_shape %s' % (X.shape[1:], self.meta['model_input_shape']))
+            raise Exception('X.shape %s does not correspond to dataset model_input_shape %s' % (
+            X.shape[1:], self.meta['model_input_shape']))
         if y.shape[1:] != tuple(self.meta['label_shape']):
-            raise Exception('y.shape %s does not correspond to dataset label shape %s' % (y.shape[1:], self.meta['label_shape']))
+            raise Exception(
+                'y.shape %s does not correspond to dataset label shape %s' % (y.shape[1:], self.meta['label_shape']))
         if len(X) != len(y):
             raise Exception('Lengths of X and y do not agree, %d != %d' % (len(X), len(y)))
 
@@ -904,16 +916,16 @@ class DataSet(object):
                 self.tensors = tensors
 
         def rewritesamplefetcher():
-            one_X, one_y, one_sampleid = zip_iterator.next()
+            one_X, one_y, one_sampleid = next(zip_iterator)
             tensors = {}
             for col, f in enumerate(feature_names):
-                featuremetas, _, _, _= self._getmetas(features=[f])
+                featuremetas, _, _, _ = self._getmetas(features=[f])
                 width = featuremetas[0]['output_shape']
                 if len(width) == 0:
                     width = 1
                 else:
                     width = width[0]
-                tensors[f] = one_X[col:col+width]
+                tensors[f] = one_X[col:col + width]
             for col, f in enumerate(label_names):
                 _, labelmeta, _, _ = self._getmetas(label=f)
                 width = labelmeta['output_shape']
@@ -921,7 +933,7 @@ class DataSet(object):
                     tensors[f] = one_y
                 else:
                     width = width[0]
-                    tensors[f] = one_y[col:col+width]
+                    tensors[f] = one_y[col:col + width]
             sampleid = self.get_sample_id(one_sampleid)
             return TensorCarrier(sampleid, tensors)
 
@@ -934,7 +946,7 @@ class DataSet(object):
                 numtop = ff['output_shape'][0]
             else:
                 numtop = 1
-            ff['top10values'] = [Counter() for _ in xrange(0, numtop)]
+            ff['top10values'] = [Counter() for _ in range(0, numtop)]
         newmeta['class_counts'] = {}
 
         DataSet._write(
@@ -949,14 +961,13 @@ class DataSet(object):
             rewritetensorgetter
         )
 
-
     def plot_data(self, bins=10, all_in_one=True, index_array=None):
         if self.meta['numclasses'] > 1:
             self.plot_data_classification(bins, all_in_one, index_array)
         else:
             self.plot_data_regression(all_in_one, index_array)
 
-    def plot_data_classification(self, bins=10, all_in_one=True, index_array = None):
+    def plot_data_classification(self, bins=10, all_in_one=True, index_array=None):
         num_charts = self.model_input_shape[0] + 1
         r = floor(sqrt(num_charts)) + 1
         c = ceil(sqrt(num_charts))
@@ -980,7 +991,7 @@ class DataSet(object):
             allmax = np.max(allvalues)
             bar_width = 0
             numclasses = self.meta['numclasses']
-            for class_index in xrange(0, numclasses):
+            for class_index in range(0, numclasses):
                 h, w = np.histogram(
                     allvalues[y_true == class_index] if numclasses > 1 else allvalues,
                     density=True,
@@ -1003,7 +1014,7 @@ class DataSet(object):
             plt.subplots_adjust(hspace=0.4)
             plt.show()
 
-    def plot_data_regression(self, all_in_one=True, index_array = None):
+    def plot_data_regression(self, all_in_one=True, index_array=None):
         num_charts = self.model_input_shape[0] + 1
         r = floor(sqrt(num_charts)) + 1
         c = ceil(sqrt(num_charts))
@@ -1037,17 +1048,17 @@ class PillowPersister(object):
         self.numchannels = len(mode)
 
     def save(self, featurefile, x):
-        for i,s in enumerate(x):
+        for i, s in enumerate(x):
             img = Image.frombytes(self.mode, (self.width, self.height), s)
             with open('%s_%i.jpg' % (featurefile, i), 'wb') as f:
                 img.save(f, format='JPEG')
         self.numimages = len(x)
         with open('%s.persister' % (featurefile), 'wb') as f:
-            cPickle.dump(self, f)
+            pickle.dump(self, f)
 
     def load(self, featurefile):
         x = np.full((self.numimages, self.width, self.height, self.numchannels), BaseFeature.MISSING_VALUE)
-        for i in xrange(0, self.numimages):
+        for i in range(0, self.numimages):
             file = '%s_%i.jpg' % (featurefile, i)
             if os.path.isfile(file):
                 img = Image.open(file)
@@ -1057,8 +1068,8 @@ class PillowPersister(object):
 
 if __name__ == "__main__":
     logging.basicConfig(stream=sys.stdout, level=logging.INFO)
-    #print DataSet._get_optimal_nesting(10)
-    #print DataSet._get_optimal_nesting(1000)
-    #print DataSet._get_optimal_nesting(50000)
-    print DataSet._get_optimal_nesting(400000)
-    #print DataSet._get_optimal_nesting(1000000)
+    # print (DataSet._get_optimal_nesting(10))
+    # print (DataSet._get_optimal_nesting(1000))
+    # print (DataSet._get_optimal_nesting(50000))
+    print(DataSet._get_optimal_nesting(400000))
+    # print (DataSet._get_optimal_nesting(1000000))

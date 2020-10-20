@@ -18,6 +18,7 @@ class BaseOfBases(object):
     """
     Any entity handing or holding data should know its name, shape and dtype.
     """
+
     def __init__(self):
         self.name = self.__class__.__name__
         self.output_shape = ()
@@ -153,14 +154,12 @@ class BaseSample(BaseOfBases):
 
         return self.data[key]
 
-
     def makeimpl(self):
         """
         Override and return a dictionary with the raw data retrieved from the data source, or None if there is no
         possibility to retrieve.
         """
         raise NotImplementedError()
-
 
     def __str__(self):
         return self.entityid
@@ -195,7 +194,6 @@ class BaseSample(BaseOfBases):
     @property
     def entityid(self):
         return self.data['entityid']
-
 
 
 class BaseFeature(BaseOfBases):
@@ -249,7 +247,7 @@ class BaseFeature(BaseOfBases):
 
     def getfromsample(self, sample):
         kwargs = dict()
-        for param in inspect.getargspec(self.get).args[1:]:
+        for param in inspect.getfullargspec(self.get).args[1:]:
             if param == 'sample':
                 kwargs[param] = sample
             else:
@@ -274,13 +272,14 @@ class BaseFeature(BaseOfBases):
         if self._get_width() == 1:
             return ['']
         else:
-            return ['_'+str(x) for x in xrange(0,self._get_width())]
+            return ['_' + str(x) for x in range(0, self._get_width())]
 
 
 class TrivialFeature(BaseFeature):
     """
     Returns a numeric value stored in the sample under the defined path.
     """
+
     def __init__(self, path, output_shape):
         """
         :param path: key name in the sample, or a path of key names separated by dots, eg. 'User.Invoice.Total'
@@ -297,13 +296,16 @@ class TrivialFeature(BaseFeature):
                 return BaseFeature.MISSING_VALUE
             data = data[part]
         result = converttonumpy(data)
-        if result.shape == (1,) and self.output_shape == (): # unfold scalars to have it more comfortable when using this for labels
+        if result.shape == (1,) and self.output_shape == ():  # unfold scalars to have it more comfortable when using
+            # this for labels
             return result[0]
         if result.shape != self.output_shape:
             if Settings.OnFeatureFailure == 'raise':
-                raise Exception('TrivialFeature shape mismatch: defined %s, but the sample has %s' % (self.output_shape, result.shape))
+                raise Exception('TrivialFeature shape mismatch: defined %s, but the sample has %s' % (
+                    self.output_shape, result.shape))
             else:
-                logging.info('TrivialFeature shape mismatch: defined %s, but the sample has %s' % (self.output_shape, result.shape))
+                logging.info('TrivialFeature shape mismatch: defined %s, but the sample has %s' % (
+                    self.output_shape, result.shape))
                 return np.full(self.output_shape, BaseFeature.MISSING_VALUE)
         return result
 
@@ -314,6 +316,7 @@ class BasePreprocessor(BaseOfBases):
     instances, before they will be used in model (as input or labels). A typical example is normalization of the values,
     removing outliers etc. You can use all Scikit-Learn preprocessors as well as some ours, see iwlearn.preprocessors
     """
+
     def __init__(self):
         BaseOfBases.__init__(self)
 
@@ -349,6 +352,7 @@ class BasePredictionFactory(BaseOfBases):
     the constructor. To say the model to use this new Prediction class for predictions, you'll be
     configuring it with a new prediction factory.
     """
+
     def __init__(self):
         BaseOfBases.__init__(self)
 
@@ -360,6 +364,7 @@ class ScorePredictionFactory(BaseOfBases):
     """
     Create an instance of Prediction based on raw scores returned by the model.
     """
+
     def __init__(self):
         BaseOfBases.__init__(self)
 
@@ -373,6 +378,7 @@ class TrivialPredictionFactory(BasePredictionFactory):
         BasePrediction or at least implement its interface, be sure that the raw model is really not a number or
         something raw. This is for example usually the case for BaseRule-based models.
     """
+
     def __init__(self):
         BasePredictionFactory.__init__(self)
 
@@ -428,7 +434,8 @@ class BasePrediction(object):
             self.tag = predictor.tag
 
     def __str__(self):
-        return '%s %s' % (self.predictor if hasattr(self, 'predictor') and self.predictor is not None else 'unkown', self.prediction if hasattr(self, 'prediction') and self.prediction is not None else 'unkown')
+        return '%s %s' % (self.predictor if hasattr(self, 'predictor') and self.predictor is not None else 'unkown',
+                          self.prediction if hasattr(self, 'prediction') and self.prediction is not None else 'unkown')
 
 
 class ScorePrediction(BasePrediction):
@@ -506,7 +513,6 @@ class BaseModel(BaseFeature):
         if self.metrics is None:
             self.metrics = []
 
-
         # X.shape must be equal to (number of samples, ) + model.input_shape
         # y_true.shape must be equal to (number of samples, ) + model.output_shape
         # That is, input and output shapes are per sample.
@@ -514,10 +520,10 @@ class BaseModel(BaseFeature):
         # default suitable for classification or regression. Change in child classes if needed.
         self.output_shape = ()
 
-        self.input_shape = BaseModel.calculate_shape(features = self.features)
+        self.input_shape = BaseModel.calculate_shape(features=self.features)
 
         source_code = inspect.getsource(type(self))
-        self.tag = hex(hash(source_code)+sys.maxsize + 1)[2:]
+        self.tag = hex(hash(source_code) + sys.maxsize + 1)[2:]
 
         if labels is not None:
             self.labels = labels
@@ -543,7 +549,7 @@ class BaseModel(BaseFeature):
             if len(shape) == 0:
                 input_shape[0] += 1
                 continue
-            for dim in xrange(0, len(shape)):
+            for dim in range(0, len(shape)):
                 if dim == 0:
                     input_shape[0] += shape[dim]
                 else:
@@ -613,7 +619,7 @@ class BaseModel(BaseFeature):
         return result
 
     def _save(self, folder, creator):
-        filepath_modelname = '%s/%s' % (folder, self.tag, )
+        filepath_modelname = '%s/%s' % (folder, self.tag,)
 
         filepath_pickle = filepath_modelname + '.dill'
         with open(filepath_pickle, 'wb') as f:
@@ -621,7 +627,7 @@ class BaseModel(BaseFeature):
             logging.info('Model saved to %s' % filepath_pickle)
 
         self.meta_infos["created"] = dt.datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
-        self.meta_infos["createdby"] =  creator
+        self.meta_infos["createdby"] = creator
         self.meta_infos["task"] = self.task
         self.meta_infos["filepath"] = filepath_pickle
 
@@ -651,7 +657,8 @@ class BaseModel(BaseFeature):
         label tensors for the whole dataset. You should never use datasets __getitem__ method for training
         (i.e. do never ```for sample in dataset:```). This method is slow and is for debugging purposes only.
         :param dataset: training set
-        :param configuration: pass this named parameters set to the underlying model (classifier, regressor, Keras model etc)
+        :param configuration: pass this named parameters set to the underlying model (classifier, regressor, Keras
+        model etc)
         """
         raise NotImplementedError()
 
@@ -704,6 +711,9 @@ class BaseModel(BaseFeature):
         else:
             return self.predict_scores([sample])[0]
 
+    def get(self, *args, **kwargs):
+        raise NotImplementedError('You cannot call BaseModel.get(). Did you mean to call getfromsample instead?')
+
     def evaluate(self, dataset):
         """
         Predict the passed test set and calculate self.metrics on the result. Depending on the particular model,
@@ -725,7 +735,7 @@ class BaseModel(BaseFeature):
         y_pred = []
 
         for prediction in predictions:
-            if prediction is None: # it can be None in case of Rules
+            if prediction is None:  # it can be None in case of Rules
                 pred = BaseFeature.MISSING_VALUE
             else:
                 pred = prediction.prediction if hasattr(prediction, 'prediction') else BaseFeature.MISSING_VALUE
@@ -734,7 +744,7 @@ class BaseModel(BaseFeature):
         y_pred = np.array(y_pred)
         metricresults = {'Number of test samples': len(y_test)}
         for metricfoo in self.metrics:
-            metricresults[metricfoo.func_name] = metricfoo(y_test, y_pred)
+            metricresults[metricfoo.__name__] = metricfoo(y_test, y_pred)
 
         return metricresults, y_pred, y_test
 
@@ -749,18 +759,20 @@ class BaseModel(BaseFeature):
         """
         metricresults, y_pred, y_test = self.evaluate(dataset)
 
-        print
-        print 'Evaluation of ' + repr(self)
-        print '--------------------------------------------------------------------------------'
+        print()
+        print('Evaluation of ' + repr(self))
+        print('--------------------------------------------------------------------------------')
         for temp in sorted(metricresults.keys()):
-            print '%s\t%s' % (temp, str(metricresults[temp]))
+            print('%s\t%s' % (temp, str(metricresults[temp])))
 
         return metricresults, y_pred, y_test
+
 
 class RulePrediction(BasePrediction):
     def __init__(self, prediction):
         BasePrediction.__init__(self, None)
         self.prediction = prediction
+
 
 class BaseRule(BaseModel):
     """
@@ -795,7 +807,11 @@ class BaseRule(BaseModel):
     The parameters of the _implement_rule method correspond to the lowercased names of the self.features without the
     "Feature" suffix.
     """
-    def __init__(self, features, task = None, sampletype = None, labelkey=None, metrics=None):
+
+    def train_impl(self, dataset, **configuration):
+        raise NotImplementedError()
+
+    def __init__(self, features, task=None, sampletype=None, labelkey=None, metrics=None):
         """
         :param features: An array with at least one instance of BaseFeature to extract information from the sample. You
         can also use a TrivialFeature if the information from the sample don't need to be processed. On the other hand,
@@ -832,20 +848,20 @@ class BaseRule(BaseModel):
             col = 0
             for feature in self.features:
                 param = self.get_param(feature.name)
-                if feature.output_shape == ():    # special handling: features returning scalars will be passed as
-                                                  # scalars; features returning arrays will be passed as arrays
+                if feature.output_shape == ():  # special handling: features returning scalars will be passed as
+                    # scalars; features returning arrays will be passed as arrays
                     kwargs[param] = row[col]
                 else:
                     kwargs[param] = row[col:col + feature._get_width()]
                 col += feature._get_width()
 
             real_kwargs = {}
-            for k, v in kwargs.iteritems():
+            for k, v in kwargs.items():
                 if isinstance(v, NonePrediction):
                     real_kwargs[k] = None
                 else:
                     real_kwargs[k] = v
-            logging.debug('%s\t%s' %(self.__class__.__name__, real_kwargs))
+            logging.debug('%s\t%s' % (self.__class__.__name__, real_kwargs))
             prediction = self._implement_rule(**real_kwargs)
             if prediction is None:
                 prediction = NonePrediction(self)
@@ -861,6 +877,9 @@ class BaseRule(BaseModel):
         Override in your class, define the parameters corresponding to the lowercased names of your features, and
         return either an instance of RulePrediction, or None if no prediction can be made.
         """
+        raise NotImplementedError()
+
+    def get(self, *args, **kwargs):
         raise NotImplementedError()
 
 
@@ -884,6 +903,7 @@ class BaseDataSource(BaseOfBases):
 
     When interiting from this class, implement the constructure and optionally the makeimpl method.
     """
+
     def __init__(self):
         BaseOfBases.__init__(self)
 
@@ -893,11 +913,12 @@ class BaseDataSource(BaseOfBases):
         try:
             result = self.makeimpl(**kwargs)
             if result is not None:
-                logging.info('%s retrieved in %.0f ms' % (self.name, (dt.datetime.now() - started).total_seconds() * 1000))
+                logging.info(
+                    '%s retrieved in %.0f ms' % (self.name, (dt.datetime.now() - started).total_seconds() * 1000))
             else:
                 logging.info('Cannot retrieve  %s ' % self.name)
         except:
-            logging.error('Cannot retrieve sample %s ' % self, exc_info = True)
+            logging.error('Cannot retrieve sample %s ' % self)
         return result
 
     def makeimpl(self, **kwargs):
@@ -919,11 +940,13 @@ class BaseDataSource(BaseOfBases):
 
 
 class Settings(object):
-    """If a feature cannot be computed from a sample, whether to raise an Exception, or to replace it with BaseFeature.MISSING_VALUE"""
+    """If a feature cannot be computed from a sample, whether to raise an Exception, or to replace it with
+    BaseFeature.MISSING_VALUE"""
     OnFeatureFailure = 'raise'  # or 'impute'
 
-    """If a feature is not present in the Dataset, whether to raise an Exception, or to replace it with BaseFeature.MISSING_VALUE"""
-    OnFeatureMissing = 'impute' # or 'raise'
+    """If a feature is not present in the Dataset, whether to raise an Exception, or to replace it with 
+    BaseFeature.MISSING_VALUE"""
+    OnFeatureMissing = 'impute'  # or 'raise'
 
     """Whether to raise exception if the dataset contains samples with not-unique entityid"""
     EnsureUniqueEntitiesInDataset = False
@@ -960,13 +983,13 @@ def create_tensor(samples, feature, preprocess=True, calculate_preprocessors=Tru
             X[row] = val
         except:
             if Settings.LogCannotGetFeatureError:
-                logging.exception('Cannot get feature %s' % (feature.name, ))
+                logging.exception('Cannot get feature %s' % (feature.name,))
         row += 1
 
     if Settings.LogFeatureExecutionTime:
         toc = time.time()
-        logging.info('%s took %s total, ~%s ms/sample' % (feature.name, 1000 * (toc - tic), (1000 * (toc - tic))/len(samples)))
-
+        logging.info(
+            '%s took %s total, ~%s ms/sample' % (feature.name, 1000 * (toc - tic), (1000 * (toc - tic)) / len(samples)))
 
     logging.debug(X)
 
@@ -975,7 +998,6 @@ def create_tensor(samples, feature, preprocess=True, calculate_preprocessors=Tru
             if calculate_preprocessors:
                 preprocessor.calculate(X)
             preprocessor.process(X)
-
 
     return X
 
@@ -1000,14 +1022,13 @@ def combine_tensors(tensors, sampleshape, numsamples, dtype=None):
     if dtype is None:
         dtype = np.float32
 
-
     X = np.full(resultingshape, BaseFeature.MISSING_VALUE, dtype=dtype)
 
     if len(tensors) == 0 or len(tensors[0]) == 0:
         return X
 
     if len(resultingshape) > 1:
-        for row in xrange(0, len(tensors[0])):
+        for row in range(0, len(tensors[0])):
             _broadcastvalue(X[row], [x[row] for x in tensors], dtype, resultingshape)
     else:
         for tensor in tensors:
@@ -1016,6 +1037,7 @@ def combine_tensors(tensors, sampleshape, numsamples, dtype=None):
     logging.debug(X)
 
     return X
+
 
 def _broadcastvalue(target, values, dtype, resultingshape):
     col = 0
@@ -1050,4 +1072,3 @@ def _agreeshape(val, broadcastshape):
         return val
     except:
         pass
-

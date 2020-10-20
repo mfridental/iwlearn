@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import logging
 import sys
+from functools import cmp_to_key
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -43,7 +44,6 @@ def stratfiedTrainTestSplit(X, y, test_size=0.25, verbose=False):
         logging.info('#XTest: %d' % XTest.shape[0])
         logging.info('#yTest: %d' % yTest.shape[0])
 
-
     return XTrain, XTest, yTrain, yTest
 
 
@@ -69,15 +69,15 @@ class ScikitLearnModel(BaseModel):
             setsize = 1000
 
         try:
-            for i in xrange(0, X_train.shape[1]):
+            for i in range(0, X_train.shape[1]):
                 self.goodnessfitinfo[i] = {
                     'min': np.min(X_train[:, i]),
                     'max': np.max(X_train[:, i]),
                     'var': np.var(X_train[:, i]),
-                    'x_train': X_train[-setsize-1:-1, i],
-                    'y_train': y_train[-setsize-1:-1]}
-        except Exception as e:
-            logging.exception(e.message)
+                    'x_train': X_train[-setsize - 1:-1, i],
+                    'y_train': y_train[-setsize - 1:-1]}
+        except:
+            logging.error('cannot calculate goodnessoffitinfo')
         return self.retrain(X_train, y_train, **configuration)
 
     def checkgoodnessoffit(self, samples):
@@ -103,7 +103,7 @@ class ScikitLearnModel(BaseModel):
 
             labelresult = {}
 
-            for i in xrange(0, len(self.features)):
+            for i in range(0, len(self.features)):
                 info = self.goodnessfitinfo[i]
                 x_train = info['x_train']
                 y_train = info['y_train']
@@ -113,7 +113,9 @@ class ScikitLearnModel(BaseModel):
                 _, pvalue = ks_2samp(x_pred, x_train)
                 labelresult[self.features[i].name + ' Kolmogorov-Smirnov p'] = pvalue
                 test, __, _ = anderson_ksamp([x_train, x_pred], False)
-                labelresult[self.features[i].name + ' Anderson-Darling stat'] = test # 0.3 is 25% chance of having same distribution, 3 is 1% chance of having same distribution
+                labelresult[self.features[
+                                i].name + ' Anderson-Darling stat'] = test  # 0.3 is 25% chance of having same
+                # distribution, 3 is 1% chance of having same distribution
                 labelresult[self.features[i].name + ' minmin'] = (info['min'], np.min(x_pred))
                 labelresult[self.features[i].name + ' maxmax'] = (info['max'], np.max(x_pred))
 
@@ -124,7 +126,7 @@ class ScikitLearnModel(BaseModel):
     def retrain(self, X_train, y_train, **configuration):
         logging.info('Numpyset X %s, y_true %s' % (X_train.shape, y_train.shape))
         logging.info(
-            'Unique values per column: %s' % ([len(set(X_train[:, col])) for col in xrange(0, X_train.shape[1])]))
+            'Unique values per column: %s' % ([len(set(X_train[:, col])) for col in range(0, X_train.shape[1])]))
         logging.info('Training start')
         if self.scaler is None:
             X_train_scaled = X_train
@@ -142,19 +144,19 @@ class ScikitLearnModel(BaseModel):
         metrics, y_pred, y_test = BaseModel.evaluate(self, dataset)
         featurerepl = []
         for f in self.features:
-            featurerepl.extend(['%s%s' % (f.name, f.getattributes()[i]) for i in xrange(0, f._get_width())])
+            featurerepl.extend(['%s%s' % (f.name, f.getattributes()[i]) for i in range(0, f._get_width())])
         if hasattr(self.classifier, 'feature_importances_'):
             i = 1
             for imp, f in sorted(zip(self.classifier.feature_importances_, featurerepl),
-                                 cmp=lambda a, b: -1 if a[0] > b[0] else 1 if a[0] < b[0] else 0):
+                                 key=cmp_to_key(lambda a, b: -1 if a[0] > b[0] else 1 if a[0] < b[0] else 0)):
                 metrics['%02d. %s Importance' % (i, f)] = imp
                 i += 1
         if hasattr(self.classifier, 'n_estimators'):
-             metrics['n_estimators'] = self.classifier.n_estimators
+            metrics['n_estimators'] = self.classifier.n_estimators
         if hasattr(self.classifier, 'max_features'):
-             metrics['max_features'] = self.classifier.max_features
+            metrics['max_features'] = self.classifier.max_features
         if hasattr(self.classifier, 'min_samples_leaf'):
-             metrics['min_samples_leaf'] = self.classifier.min_samples_leaf
+            metrics['min_samples_leaf'] = self.classifier.min_samples_leaf
         self.meta_infos['EvaluationResult'] = metrics
         return metrics, y_pred, y_test
 
@@ -164,12 +166,14 @@ class ScikitLearnModel(BaseModel):
         p[p < lamda] = 0
         return p.flatten()
 
-    def train_with_hyperparameters_optimization(self, dataset, n_splits, param_distributions, params_distributions_test_proportion, test_size):
+    def train_with_hyperparameters_optimization(self, dataset, n_splits, param_distributions,
+                                                params_distributions_test_proportion, test_size):
         X, y = dataset.get_all_samples(features=[f.name for f in self.features], label=self.labels[0].name)
 
         X_train, X_eval, y_train, y_eval = stratfiedTrainTestSplit(X, y, test_size)
         logging.info('Numpyset X %s, y_true %s' % (X_train.shape, y_train.shape))
-        logging.info('Unique values per column: %s' % ([len(set(X_train[:, col])) for col in xrange(0, X_train.shape[1])]))
+        logging.info(
+            'Unique values per column: %s' % ([len(set(X_train[:, col])) for col in range(0, X_train.shape[1])]))
         logging.info('Training start')
 
         best_params = []
@@ -266,7 +270,7 @@ class ScikitLearnModel(BaseModel):
         cv = ShuffleSplit(n_splits=runs, test_size=test_size, random_state=0)
         train_sizes = np.linspace(0.01, 1.0, learningstep)
         train_sizes, train_scores, test_scores = learning_curve(estimator=self.classifier, X=X, y=y,
-                                                                train_sizes=train_sizes, cv=cv, n_jobs=-1,
+                                                                train_sizes=train_sizes, cv=cv, n_jobs=1,
                                                                 scoring=scoring)
         train_scores_mean = np.mean(train_scores, axis=1)
         train_scores_std = np.std(train_scores, axis=1)

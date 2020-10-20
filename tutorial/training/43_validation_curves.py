@@ -14,7 +14,7 @@ if __name__ == "__main__":
 
     train = DataSet('train')
     test = DataSet('test')
-    print 'Samples in train %d, in test %d' % (len(train), len(test))
+    print ('Samples in train %d, in test %d' % (len(train), len(test)))
 
     model = RelocationModel()
     model.train(train)

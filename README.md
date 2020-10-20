@@ -635,7 +635,7 @@ class RelocationUserSample(BaseSample):
 
 sample = RelocationUserSample(12345)
 sample.make()
-print sample['WatchedRealEstates'] # will print a list of estate ids retrieved from Couchbase
+print (sample['WatchedRealEstates']) # will print a list of estate ids retrieved from Couchbase
         
 ```
 
@@ -692,8 +692,8 @@ class RelocationUserSample(BaseSample):
 
 sample = RelocationUserSample(12345)
 sample.make()
-print sample['WatchedRealEstates'] # will print [list of estateids]
-print sample['WatchedRealEstateAttributes'] # will print [ {'price': .., 'livingarea': .., ..}, ...]         
+print (sample['WatchedRealEstates']) # will print [list of estateids]
+print (sample['WatchedRealEstateAttributes']) # will print [ {'price': .., 'livingarea': .., ..}, ...]         
 
 ```
 
@@ -735,8 +735,8 @@ class MyFeature(BaseFeature):
         self.output_shape = ()
 
     def get(self, someData, otherData):
-        print someData  # 123
-        print otherData # dict {'some property': 'some value'}
+        print (someData)  # 123
+        print (otherData) # dict {'some property': 'some value'}
         
         if otherData['some property']:
             return someData * 100
@@ -850,8 +850,8 @@ mongo.setmongouri('mongodb://localhost:27017/')   # for this tutorial, we use a 
 
 # For this tutorial, we fake our data. In a real project,
 # load here your real keys and labels directly from the databases
-DUMMY_userkeys = ['user' + str(x) for x in xrange(0, 10000)]
-DUMMY_userlabels = [1 if x < MAGIC else 0 for x in xrange(0, 10000)]
+DUMMY_userkeys = ['user' + str(x) for x in range(0, 10000)]
+DUMMY_userlabels = [1 if x < MAGIC else 0 for x in range(0, 10000)]
 
 for userkey, label in zip(DUMMY_userkeys, DUMMY_userlabels):
     sample = RelocationUserSample(userkey=userkey)
@@ -921,7 +921,7 @@ again. Only when you need to change or extent features, the dataset will need to
 We can now load the dataset and plot the histograms:
 ```python
     train = DataSet('train')
-    print 'Number of samples %d' % len(train)
+    print ('Number of samples %d' % len(train))
 
     train.plot_data()   
 ```
@@ -1042,7 +1042,7 @@ Having the model, we can train it with
 ```python
 train = DataSet('train')
 test = DataSet('test')
-print 'Samples in train %d, in test %d' % (len(train), len(test))
+print ('Samples in train %d, in test %d' % (len(train), len(test)))
 
 model = RelocationModel()
 model.train(train)
@@ -1181,7 +1181,7 @@ automated feature selection procedure:
 ```python
 train = DataSet('train')
 test = DataSet('test')
-print 'Samples in train %d, in test %d' % (len(train), len(test))
+print ('Samples in train %d, in test %d' % (len(train), len(test)))
 
 model = RelocationModel()
 model.train(train)
@@ -1227,7 +1227,7 @@ Learning curve helps detecting under- and overfitting by calculating model perfo
 ```python
     train = DataSet('train')
     test = DataSet('test')
-    print 'Samples in train %d, in test %d' % (len(train), len(test))
+    print ('Samples in train %d, in test %d' % (len(train), len(test)))
 
     model = RelocationModel()
     model.train(train)
@@ -1248,7 +1248,7 @@ dataset size, for example, if we use RandomForestClassifier, we can change numbe
 ```python
 train = DataSet('train')
 test = DataSet('test')
-print 'Samples in train %d, in test %d' % (len(train), len(test))
+print ('Samples in train %d, in test %d' % (len(train), len(test)))
 
 model = RelocationModel()
 model.train(train)
@@ -1281,7 +1281,7 @@ than default number of estimators is required to get good performance.
 ```python
 train = DataSet('train-hyper')
 test = DataSet('test-hyper')
-print 'Samples in train %d, in test %d' % (len(train), len(test))
+print ('Samples in train %d, in test %d' % (len(train), len(test)))
 
 model = RelocationModelHyper()
 

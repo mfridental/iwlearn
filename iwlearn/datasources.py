@@ -3,14 +3,15 @@ import sys
 import logging
 import datetime as dt
 import pyodbc
+import traceback
 from threading import current_thread
 from couchbase.bucket import Bucket
-from couchbase.views.iterator import View
 
 from pymongo import MongoClient
 from pyclickhouse import Connection
 
 from base import BaseDataSource
+
 
 class ThreadSafeDataSource(BaseDataSource):
     """
@@ -39,9 +40,9 @@ class ThreadSafeDataSource(BaseDataSource):
     def delete_client(self, connection_string):
         thread_id = current_thread().ident
 
-        logging.debug('delete_client %s' % (thread_id, ))
+        logging.debug('delete_client %s' % (thread_id,))
         if thread_id in self.clients:
-            logging.debug('delete_client %s' % (connection_string, ))
+            logging.debug('delete_client %s' % (connection_string,))
             if connection_string in self.clients[thread_id]:
                 try:
                     if self.close_client is not None:
@@ -70,7 +71,8 @@ class ThreadSafeDataSource(BaseDataSource):
         try:
             result = self.makeimpl(**kwargs)
             if result is not None:
-                logging.info('%s retrieved in %.0f ms' % (self.name, (dt.datetime.now() - started).total_seconds() * 1000))
+                logging.info(
+                    '%s retrieved in %.0f ms' % (self.name, (dt.datetime.now() - started).total_seconds() * 1000))
             else:
                 logging.info('Cannot retrieve  %s ' % self.name)
         except:
@@ -159,14 +161,15 @@ class CouchBaseDataSource(ThreadSafeDataSource):
     def get_multi(self, keys):
         bucket = self.get_client(self.connection_string)
         result = dict()
-        for key, value in bucket.get_multi(keys, quiet=True).iteritems():
+        for key, value in bucket.get_multi(keys, quiet=True).items():
             if value is not None:
                 result[key] = value
         return result
 
-    def get_view(self, design, view, key, include_docs=False):
-        return View(self.get_client(self.connection_string), design, view, key=key, stale='ok', full_set=True,
-                    include_docs=include_docs)
+    def query_view(self, design, view, key, include_docs=False):
+        bucket = self.get_client(self.connection_string)
+        return bucket.view_query(design, view, key=key, stale='ok', full_set=True,
+            include_docs=include_docs)
 
 
 class MongoDBDataSource(ThreadSafeDataSource):
@@ -176,11 +179,11 @@ class MongoDBDataSource(ThreadSafeDataSource):
         self.database = database
         self.collection = collection
         self.create_client = lambda connection_string: MongoClient(host=connection_string, document_class=dict,
-                                                                   socketTimeoutMS=socketTimeoutMS)
+            socketTimeoutMS=socketTimeoutMS)
 
     def find_one(self, filter=None, *args, **kwargs):
         result = self.get_client(self.connection_string)[self.database][self.collection].find_one(filter, *args,
-                                                                                                  **kwargs)
+            **kwargs)
         logging.debug(result)
         return result
 
@@ -190,8 +193,8 @@ class ClickhouseDataSource(ThreadSafeDataSource):
         ThreadSafeDataSource.__init__(self)
         self.connection_string = connection_string
         self.create_client = lambda connection_string: Connection(connection_string.split(':')[0],
-                                                                  connection_string.split(':')[1],
-                                                                  timeout=timeout)
+            connection_string.split(':')[1],
+            timeout=timeout)
         self.close_client = lambda connection: connection.close()
 
     def _select(self, query, params, action):
@@ -206,7 +209,6 @@ class ClickhouseDataSource(ThreadSafeDataSource):
 
     def get_rows_as_dict(self, query, *params):
         return self._select(query, params, lambda cursor: cursor.fetchall())
-
 
 
 if __name__ == "__main__":

@@ -12,7 +12,7 @@ if __name__ == "__main__":
 
     train = DataSet('train-pro')
     test = DataSet('test-pro')
-    print 'Samples in train %d, in test %d' % (len(train), len(test))
+    print ('Samples in train %d, in test %d' % (len(train), len(test)))
 
     model = RelocationModelPro()
     model.train(train)

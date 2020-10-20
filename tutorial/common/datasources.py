@@ -2,9 +2,9 @@
 import sys
 import logging
 
-from configuration import COUCHBASE_CONNECTION_STRING
+from tutorial.common.configuration import COUCHBASE_CONNECTION_STRING
 
-import _DUMMY   # do not use dummy in real projects, instead:
+from tutorial.common import _DUMMY   # do not use dummy in real projects, instead:
                 # from iwlearn.datasources import CouchBaseDataSource, SQLDataSource, ...
 
 class WatchedRealEstatesDataSource(_DUMMY.MockCouchBaseDataSource):

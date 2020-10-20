@@ -8,6 +8,6 @@ if __name__ == "__main__":
     logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 
     train = DataSet('train')
-    print 'Number of samples %d' % len(train)
+    print ('Number of samples %d' % len(train))
 
     train.plot_data(bins=20)
