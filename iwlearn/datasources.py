@@ -2,15 +2,30 @@
 import sys
 import logging
 import datetime as dt
-import pyodbc
 import traceback
 from threading import current_thread
-from couchbase.bucket import Bucket
 
-from pymongo import MongoClient
-from pyclickhouse import Connection
+try:
+    import pyodbc
+except:
+    logging.warning('Cannot import pyodbc. SQLDataSource will be unavailable')
 
-from base import BaseDataSource
+try:
+    from couchbase.bucket import Bucket
+except:
+    logging.warning('Cannot import couchbase driver. CouchbaseDataSource will be unavailable')
+
+try:
+    from pymongo import MongoClient
+except:
+    logging.warning('Cannot import pymongo. MongoDBDataSource will be unavailable')
+
+try:
+    from pyclickhouse import Connection
+except:
+    logging.warning('Cannot import pyclickhouse. ClickhouseDataSource will be unavailable')
+
+from iwlearn.base import BaseDataSource
 
 
 class ThreadSafeDataSource(BaseDataSource):

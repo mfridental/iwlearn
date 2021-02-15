@@ -517,7 +517,7 @@ class DataSet(object):
         with open('input/%s/dataset_V5.json' % experiment_name, 'w') as f:
             json.dump(datasetmeta, f)
         for ff in datasetmeta['features']:
-            for v in ff['top10values']:
+            for i, v in enumerate(ff['top10values']):
                 if len(v) == 0:
                     logging.warning('Feature %s has no values' % ff['name'])
                 elif len(v) == 1:
@@ -526,7 +526,10 @@ class DataSet(object):
                     else:
                         logging.warning('Feature %s has only one value %s' % (ff['name'], v.most_common(1)[0][0]))
                 elif v.most_common(1)[0][1] > 0.99 * totalrows:
-                    logging.warning('Feature %s has the value %s in more than 99%% of samples' % (ff['name'],
+                    f_and_i = ff['name']
+                    if len(ff['top10values']) > 1:
+                        f_and_i += ', #' + str(i)
+                    logging.warning('Feature %s has the value %s in more than 99%% of samples' % (f_and_i,
                                                                                                   v.most_common(1)[0][
                                                                                                       0]))
         if 'class_counts' in datasetmeta:
@@ -539,7 +542,7 @@ class DataSet(object):
                     lessthancent.append(str(k))
 
             if len(notpresent) > 0 or len(lessthancent) > 0:
-                raise Exception('There is a class distribution problem. Following classes '
+                logging.warning('There is a class distribution problem. Following classes '
                                 'are not present in the dataset: %s. Following classes '
                                 'contribute to less than 1%% of dataset: %s'
                                 % (','.join(notpresent), ','.join(lessthancent)))
