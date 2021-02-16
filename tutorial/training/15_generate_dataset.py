@@ -14,7 +14,7 @@ if __name__ == "__main__":
     mongo.setmongouri('mongodb://localhost:27017/')
 
     DataSet.remove('train')
-    DataSet.generate('train', RelocationRule(), numclasses=2, filter={'entityid': {'$regex': r'^user[0-9]*?[0-7]$'}})
+    DataSet.generate('train', RelocationRule(), filter={'entityid': {'$regex': r'^user[0-9]*?[0-7]$'}})
 
     DataSet.remove('test')
-    DataSet.generate('test', RelocationRule(), numclasses=2, filter={'entityid': {'$regex': r'^user[0-9]*?[8-9]$'}})
+    DataSet.generate('test', RelocationRule(), filter={'entityid': {'$regex': r'^user[0-9]*?[8-9]$'}})

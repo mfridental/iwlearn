@@ -151,7 +151,7 @@
 #
 #
 # class BaseKerasClassifierModel(BaseKerasModel):
-#     def __init__(self, name, features, sampletype, numclasses, predictionfactory=None,
+#     def __init__(self, name, features, sampletype, predictionfactory=None,
 #                  labelkey=None):
 #         if predictionfactory is None:
 #             predictionfactory = KerasClassifierPredictionFactory()

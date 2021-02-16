@@ -21,10 +21,10 @@ REQUIRED=[
 ]
 
 setup(name='iwlearn3',
-      version='0.1.2',
+      version='0.1.3',
       description='Immowelt Machine Learning Framework (Python 3)',
       url='https://github.com/mfridental/iwlearn',
-      download_url = 'https://github.com/mfridental/iwlearn/archive/0.1.2.tar.gz',
+      download_url = 'https://github.com/mfridental/iwlearn/archive/0.1.3.tar.gz',
       keywords = ['Scikit-Learn', 'Tensorflow', 'Keras', 'Machine Learning'],
       classifiers=[
             "Programming Language :: Python :: 3"

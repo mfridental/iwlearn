@@ -22,9 +22,9 @@ class TestFixture(object):
             range(10000, 12000)]
 
         DataSet.remove('bootstrapped_training')
-        DataSet.bootstrap('bootstrapped_training', model, train_samples, part_size=2000, numclasses=2)
+        DataSet.bootstrap('bootstrapped_training', model, train_samples, part_size=2000)
         DataSet.remove('bootstrapped_test')
-        DataSet.bootstrap('bootstrapped_test', model, test_samples, part_size=2000, numclasses=2)
+        DataSet.bootstrap('bootstrapped_test', model, test_samples, part_size=2000)
 
     def test_training(self, capsys):
         model = ScikitLearnModel('TestModel', [OneHotFeature()], TestOfferSample)

@@ -122,7 +122,7 @@ class TestDataSet(object):
 
     def testgenerator(self):
         DataSet.generate('testdataset', self.generatormodel, maxRAM=288, customclient=self.mongoclient, query='query',
-                         numclasses=2, filter={})
+                          filter={})
         ds = DataSet('testdataset')
         print(len(ds))
         assert len(ds) == 1000

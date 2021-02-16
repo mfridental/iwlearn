@@ -40,25 +40,25 @@ class TestFixture():
                 }))
 
         model_1 = ScikitLearnModel('TestModel', [SimpleSampleFeature('value_1')], TestOfferSample)
-        DataSet.bootstrap('v2_test', model_1, samples, part_size=10, numclasses=2)
+        DataSet.bootstrap('v2_test', model_1, samples, part_size=10)
         ds = DataSet('v2_test')
 
         assert len(ds) == 100
-        assert tuple(ds.meta['model_input_shape']) == (1,)
-        assert [x['name'] for x in ds.meta['features']] == ['SimpleSampleFeature_value_1']
-        assert len(ds.meta['features']) == 1
+        assert tuple(ds.meta.model_input_shape) == (1,)
+        assert [x.name for x in ds.meta.features] == ['SimpleSampleFeature_value_1']
+        assert len(ds.meta.features) == 1
         assert len(ds.metaparts) == 10
         for k, p in ds.metaparts.items():
             assert p['unordered_features'] == ['SimpleSampleFeature_value_1']
 
         # Expand vertically
-        DataSet.bootstrap('v2_test', model_1, samples_2, part_size=10, numclasses=2)
+        DataSet.bootstrap('v2_test', model_1, samples_2, part_size=10)
         ds = DataSet('v2_test')
 
         assert len(ds) == 200
-        assert tuple(ds.meta['model_input_shape']) == (1,)
-        assert [x['name'] for x in ds.meta['features']] == ['SimpleSampleFeature_value_1']
-        assert len(ds.meta['features']) == 1
+        assert tuple(ds.meta.model_input_shape) == (1,)
+        assert [x.name for x in ds.meta.features] == ['SimpleSampleFeature_value_1']
+        assert len(ds.meta.features) == 1
         assert len(ds.metaparts) == 20
         for k, p in ds.metaparts.items():
             assert p['unordered_features'] == ['SimpleSampleFeature_value_1']
@@ -68,14 +68,15 @@ class TestFixture():
                                    TestOfferSample)
         caplog.clear()
         DataSet._test_global_remove_parts_setting = 'n'  # do not remove parts with missing feature
-        DataSet.bootstrap('v2_test', model_2, samples, part_size=10, numclasses=2)
+        DataSet.bootstrap('v2_test', model_2, samples, part_size=10)
         ds = DataSet('v2_test')
-        assert len(caplog.records) == 10
-        for tpl in caplog.records:
+        assert len(caplog.records) == 11
+        assert caplog.records[0].message == 'Model input shape has been changed from (1,) to (2,)'
+        for tpl in caplog.records[1:]:
             assert "does not contain following features: {'SimpleSampleFeature_value_2'}" in tpl.msg
         assert len(ds) == 200
-        assert tuple(ds.meta['model_input_shape']) == (2,)
-        assert [x['name'] for x in ds.meta['features']] == ['SimpleSampleFeature_value_1',
+        assert tuple(ds.meta.model_input_shape) == (2,)
+        assert [x.name for x in ds.meta.features] == ['SimpleSampleFeature_value_1',
                                                             'SimpleSampleFeature_value_2']
         assert len(ds.metaparts) == 20
         for k, p in ds.metaparts.items():
@@ -92,10 +93,11 @@ class TestFixture():
 
         # Remove first feature
         caplog.clear()
-        DataSet.bootstrap('v2_test', model_1, samples, part_size=10, numclasses=2)
+        DataSet.bootstrap('v2_test', model_1, samples, part_size=10)
         ds = DataSet('v2_test')
-        assert len(caplog.records) == 1
-        assert "Following features removed from dataset_V5.json: {'SimpleSampleFeature_value_2'}" in \
+        assert len(caplog.records) == 2
+        assert caplog.records[1].message == 'Model input shape has been changed from (2,) to (1,)'
+        assert "Following features removed from dataset_V8.json: {'SimpleSampleFeature_value_2'}" in \
                caplog.text
 
 
