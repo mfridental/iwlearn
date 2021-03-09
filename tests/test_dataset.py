@@ -137,7 +137,7 @@ class TestDataSet(object):
         x, y = ds[150]
         assert y == 150 % 2
 
-        assert len(ds.cache) == 1
+        assert len(ds.cache) == 2
         for i in range(0, 1000):
             assert ds[i][1] == i % 2
 

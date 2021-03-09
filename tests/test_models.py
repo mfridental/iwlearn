@@ -38,7 +38,7 @@ class TestFixture(object):
         assert 'f1_score' in metrics
         assert 'precision_score' in metrics
         assert 'recall_score' in metrics
-        assert metrics['f1_score'] > 0.1
+        assert metrics['f1_score'][1] > 0.1
 
 
 if __name__ == "__main__":

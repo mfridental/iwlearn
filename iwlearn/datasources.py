@@ -204,12 +204,12 @@ class MongoDBDataSource(ThreadSafeDataSource):
 
 
 class ClickhouseDataSource(ThreadSafeDataSource):
-    def __init__(self, connection_string, timeout=5):
+    def __init__(self, connection_string, timeout=5, **kwargs):
         ThreadSafeDataSource.__init__(self)
         self.connection_string = connection_string
         self.create_client = lambda connection_string: Connection(connection_string.split(':')[0],
             connection_string.split(':')[1],
-            timeout=timeout)
+            timeout=timeout, **kwargs)
         self.close_client = lambda connection: connection.close()
 
     def _select(self, query, params, action):

@@ -4,9 +4,11 @@ import logging
 import datetime as dt
 import uuid
 import pytest
+import numpy as np
 
 from tests.common import TestOfferSample, SimpleSampleFeature
 from iwlearn.training import DataSet
+from iwlearn.training.dataset_operations import _generate_folds
 from iwlearn.models import ScikitLearnModel
 from iwlearn import BaseFeature
 
@@ -99,6 +101,53 @@ class TestFixture():
         assert caplog.records[1].message == 'Model input shape has been changed from (2,) to (1,)'
         assert "Following features removed from dataset_V8.json: {'SimpleSampleFeature_value_2'}" in \
                caplog.text
+
+    def test_generate_folds(self):
+        y = [0]*10 + [1]* 10
+
+        test, train = _generate_folds(y, fold=5, numclasses=2)
+        assert len(train) == 5
+        assert len(test) == 5
+        assert len(test[0]) == 4
+        assert len(train[0]) == 16
+        tmp = set()
+        for t in train:
+            tmp.update(t)
+        assert len(tmp) == 20
+        tmp = set()
+        for t in test:
+            tmp.update(t)
+        assert len(tmp) == 20
+
+        y = np.asarray(y)
+        test, train = _generate_folds(y,
+                                      fold=5,
+                                      numclasses=2,
+                                      train_class_sizes=[0.5,1],
+                                      test_class_sizes=None)
+        assert len(train[0]) == 12
+        assert sum(y[train[0]]==0) == 4
+        assert sum(y[train[1]]==1) == 8
+        assert len(test[0]) == 4
+        assert sum(y[test[0]]==0) == 2
+        assert sum(y[test[1]]==1) == 2
+
+        A = 24000
+        B = 800
+        y = [0]*A + [1]* B
+        y = np.asarray(y)
+        test, train = _generate_folds(y,
+                                      fold=5,
+                                      numclasses=2,
+                                      train_class_sizes=[1.5,1],
+                                      test_class_sizes=None)
+        assert len(train[0]) == 1600 # 960+640
+        assert sum(y[train[0]]==0) == 960 # 640 * 1.5
+        assert sum(y[train[1]]==1) == 640 # 800-160
+        assert len(test[0]) == 4960 #(A+B)/5
+        assert sum(y[test[0]]==0) == 4800 # 4960 - 160
+        assert sum(y[test[1]]==1) == 160 # B/(A+B)*4960
+
 
 
 if __name__ == "__main__":

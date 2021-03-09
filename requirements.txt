@@ -6,7 +6,7 @@ tensorflow==2.3.1
 #tensorflow-gpu
 Keras==2.4.3
 Keras-Preprocessing==1.1.2
-pyclickhouse
+pyclickhouse3==0.9.12
 pymongo==3.11.0
 dill==0.3.2
 lru-dict==1.1.6

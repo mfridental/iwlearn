@@ -50,6 +50,8 @@ class DataSetMeta(object):
                 if 'top10values' in v:
                     v['top10values'] = [Counter() for _ in v['top10values']]
 
+        return other
+
     def getfeaturemap(self, human_readable=True):
         featmap = []
         for f in self.features:
@@ -123,11 +125,19 @@ class DataSetMeta(object):
         self.featurestats = d['featurestats']
         for k,v in self.featurestats.items():
             if 'top10values' in v:
-                v['top10values'] = [Counter([float(xx) for xx in x]) for x in v['top10values']]
+                for i, stat in enumerate(v['top10values']):
+                    cntr_dict = dict()
+                    for xx, yy in stat.items():
+                        cntr_dict[float(xx)] = yy
+                    v['top10values'][i] = Counter(cntr_dict)
         self.labelstats = d['labelstats']
         for k,v in self.labelstats.items():
             if 'top10values' in v:
-                v['top10values'] = [Counter([float(xx) for xx in x]) for x in v['top10values']]
+                for i, stat in enumerate(v['top10values']):
+                    cntr_dict = dict()
+                    for xx, yy in stat.items():
+                        cntr_dict[float(xx)] = yy
+                    v['top10values'][i] = Counter(cntr_dict)
         self.model_input_shape = tuple(d['model_input_shape'])
         self.label_shape = tuple(d['label_shape'])
         self.sampletype = d['sampletype']
@@ -192,7 +202,7 @@ class DataSetMeta(object):
                 if len(vv) == 0:
                     logging.warning('Feature %s has no values' % f_and_i)
                 elif len(vv) == 1:
-                    if v.most_common(1)[0][0] == BaseFeature.MISSING_VALUE:
+                    if vv.most_common(1)[0][0] == BaseFeature.MISSING_VALUE:
                         logging.warning('Feature %s has only missing values' % f_and_i)
                     else:
                         logging.warning('Feature %s has only one value %s' % (f_and_i, vv.most_common(1)[0][0]))
@@ -212,6 +222,8 @@ class DataSetMeta(object):
             if 'top10values' not in self.labelstats[self.labels[0].name]:
                 return None
             cntr = self.labelstats[self.labels[0].name]['top10values'][0]
+            if len(cntr) == 0:
+                raise Exception('Cannot estimate number of classes.')
             return int(np.max([x[0] for x in cntr.most_common(1000)])) + 1
 
     def print_label_summary(self):
@@ -227,7 +239,7 @@ class DataSetMeta(object):
                     for klass in range(0, numclasses):
                         if klass not in map:
                             logging.warning('Class %d is not present in label %s' %(klass, k))
-                        if map[klass] < 0.01*totalrows:
+                        elif map[klass] < 0.01*totalrows:
                             logging.warning('Class %d contributes to less than 1%% of the dataset' % klass)
                 logging.info('Label %s top 10 values are:' % (k))
                 for t in vv.most_common(10):
@@ -668,7 +680,11 @@ class DataSet(object):
                     if len(scandir(entry.path)) == 0:
                         shutil.rmtree(entry.path)
 
-    def __init__(self, experiment_name, maxRAM=None, maxParts=None):
+    @staticmethod
+    def exists(experiment_name):
+        return os.path.isfile('input/%s/dataset_V8.json' % experiment_name)
+
+    def __init__(self, experiment_name, maxRAM=None):
         self.experiment_name = experiment_name
 
         self.meta = None
@@ -683,41 +699,40 @@ class DataSet(object):
 
         logging.info('Loading dataset %s' % experiment_name)
 
-        self.average_part_size = 0
+        self.average_feature_size = 0
         self.numsamples = 0
         self.partmap_indexes = [0]
         self.partmap_names = [None]
-        self.performance = {'totalbytesloaded': 0}
         self.model_input_shape = tuple(self.meta.model_input_shape)
         self.label_shape = tuple(self.meta.label_shape)
         self.strsampletype = self.meta.sampletype
 
         self.metaparts = {}
-        self._load_metaparts('input/%s' % experiment_name)
-        if len(self.metaparts):
-            self.average_part_size = self.average_part_size * 1.0 / len(self.metaparts)
-        logging.info('Average part size %f' % self.average_part_size)
+        self.cache = None
+        bytesize = self._load_metaparts('input/%s' % experiment_name)
+        if len(self.metaparts) > 0:
+            self.average_feature_size = bytesize * 1.0 / len(self.metaparts) / (len(self.meta.features)
+                                                                                + len(self.meta.labels))
+            logging.info('Average feature size %f' % self.average_feature_size)
 
-        if maxParts is None:
             if maxRAM is None:
                 maxRAM = int(0.5 * os.sysconf('SC_PAGE_SIZE') * os.sysconf('SC_PHYS_PAGES'))
 
-            if self.average_part_size > 0:
-                maxParts = maxRAM / self.average_part_size
+            if self.average_feature_size > 0:
+                maxfeatures = maxRAM / self.average_feature_size
             else:
-                maxParts = len(self.metaparts)
+                maxfeatures = len(self.metaparts) * (len(self.meta.features)
+                                                                                + len(self.meta.labels))
 
-            maxParts = int(maxParts)
-            if maxParts == 0:
-                maxParts = 1
+            maxfeatures = int(maxfeatures)
+            if maxfeatures == 0:
+                maxfeatures = 1
 
-        if maxParts > 0:
-            logging.info('Creating dataset cache storing at most %d parts' % maxParts)
-            self.cache = LRU(int(maxParts))
-        else:
-            self.cache = None
+            logging.info('Creating dataset cache storing at most %d features/labels' % maxfeatures)
+            self.cache = LRU(int(maxfeatures))
 
     def _load_metaparts(self, dir):
+        bytesize = 0
         for entry in scandir(dir):
             if entry.is_dir():
                 if entry.name.startswith('part_'):
@@ -727,18 +742,21 @@ class DataSet(object):
                             self.metaparts[entry.path] = partmeta
                             self.numsamples += partmeta['numsamples']
                             self.partmap_indexes.append(self.numsamples)
-                            self.average_part_size += partmeta['bytesize']
+                            bytesize += partmeta['bytesize']
                             self.partmap_names.append(entry.path)
                     except:
                         logging.error('Cannot load part %s' % entry.path)
                 else:
                     self._load_metaparts(entry.path)
+        return bytesize
 
     def _load_x(self, partdir, name, islabel):
         if islabel:
             f_file = partdir + 'Label-' + DataSet.fname(name)
         else:
             f_file = partdir + DataSet.fname(name)
+        if f_file in self.cache:
+            return self.cache[f_file]
 
         x = None
         if os.path.isfile(f_file + '.persister'):
@@ -750,10 +768,11 @@ class DataSet(object):
         else:
             logging.warning('%s does not contain feature %s, replacing with missing value' % (partdir, f_file))
 
+        self.cache[f_file] = x
         return x
 
-    def _loadpart(self, partname):
-        self.performance['totalbytesloaded'] += self.metaparts[partname]['bytesize']
+
+    def _load_features(self, partname):
         partdir = partname + '/'
 
         feat = {}
@@ -771,11 +790,16 @@ class DataSet(object):
                                 BaseFeature.MISSING_VALUE, dtype=ff.dtype)
             feat[ff.name] = x
 
+        return feat
+
+    def _load_labels(self, partname):
+        partdir = partname + '/'
+
         labe = {}
         for ff in self.meta.labels:
             labe[ff.name] = self._load_x(partdir, ff.name, True)
 
-        return (feat, labe)
+        return labe
 
     def _get_part_and_offset(self, sample_index):
         i = bisect_right(self.partmap_indexes, sample_index)
@@ -819,13 +843,8 @@ class DataSet(object):
             raise IndexError()
 
         partname, offset = self._get_part_and_offset(index)
-        if self.cache is None:
-            feat, labe = self._loadpart(partname)
-        else:
-            if partname not in self.cache:
-                self.cache[partname] = self._loadpart(partname)
-
-            feat, labe = self.cache[partname]
+        feat = self._load_features(partname)
+        labe = self._load_labels(partname)
 
         x = combine_tensors([feat[ff.name][offset:offset + 1] for ff in featuremetas], x_shape, 1)[0]
         if labelmeta:
@@ -889,10 +908,9 @@ class DataSet(object):
 
         row = 0
         for partname in self.partmap_names[1:]:
-            feat, labe = self._loadpart(partname)
+            feat = self._load_features(partname)
+            labe = self._load_labels(partname)
             numsamples = self.metaparts[partname]['numsamples']
-            if self.cache:
-                self.cache[partname] = (feat, labe)
             all_x[row:row + numsamples] = combine_tensors([feat[ff.name] for ff in featuremetas], x_shape,
                                                           numsamples)
             if labelmeta:
@@ -903,6 +921,25 @@ class DataSet(object):
             return all_x, all_y
         else:
             return all_x, None
+
+    def get_all_labels(self, labels=None):
+        """
+        Return all labels of the dataset
+        :return: y_true
+        """
+
+        featuremetas, labelmeta, x_shape, y_shape = self._getmetas([], labels)
+        all_y = np.zeros((self.numsamples,) + y_shape)
+
+        row = 0
+        for partname in self.partmap_names[1:]:
+            labe = self._load_labels(partname)
+            numsamples = self.metaparts[partname]['numsamples']
+            all_y[row:row + numsamples] = labe[labelmeta.name]
+            row += numsamples
+
+        return all_y
+
 
     def get_samples(self, index_array, features=None, label=None):
         featuremetas, labelmeta, x_shape, y_shape = self._getmetas(features, label)
@@ -929,9 +966,16 @@ class DataSet(object):
         if processor is None:
             processor = lambda feature_name, X: X
 
+
+        if os.path.isdir('input/' + experiment_name):
+            raise Exception('Directory input/%s is already present, cannot clone into that'
+                                 % experiment_name)
+        else:
+            os.makedirs('input/' + experiment_name)
+
         idx_iter = index_array.__iter__()
 
-        part_size = self.metaparts.values()[0]['numsamples']
+        part_size = list(self.metaparts.values())[0]['numsamples']
         nesting = DataSet._get_optimal_nesting(len(index_array) / part_size)
         feature_names = [x.name for x in self.meta.features]
         label_names = [x.name for x in self.meta.labels]
@@ -946,7 +990,7 @@ class DataSet(object):
             tensors = {}
             for f in feature_names:
                 featuremetas, _, _, _ = self._getmetas(features=[f])
-                X, _ = self.get_one_sample(idx, featuremetas, None, tuple(featuremetas[0]['output_shape']))
+                X, _ = self.get_one_sample(idx, featuremetas, None, tuple(featuremetas[0].output_shape))
                 tensors[f] = processor(f, X)
             for f in label_names:
                 _, labelmeta, _, _ = self._getmetas(label=f)

@@ -146,11 +146,8 @@ class ScikitLearnModel(BaseModel):
         for f in self.features:
             featurerepl.extend(['%s%s' % (f.name, f.getattributes()[i]) for i in range(0, f._get_width())])
         if hasattr(self.classifier, 'feature_importances_'):
-            i = 1
-            for imp, f in sorted(zip(self.classifier.feature_importances_, featurerepl),
-                                 key=cmp_to_key(lambda a, b: -1 if a[0] > b[0] else 1 if a[0] < b[0] else 0)):
-                metrics['%02d. %s Importance' % (i, f)] = imp
-                i += 1
+            for imp, f in zip(self.classifier.feature_importances_, featurerepl):
+                metrics['%s importance' % (f)] = imp
         if hasattr(self.classifier, 'n_estimators'):
             metrics['n_estimators'] = self.classifier.n_estimators
         if hasattr(self.classifier, 'max_features'):

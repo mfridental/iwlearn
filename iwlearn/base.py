@@ -97,7 +97,7 @@ class BaseSample(BaseOfBases):
                     self.data.update(result)
                 else:
                     self.data = result
-                logging.info('%s made in %.0f ms' % (self.name, (dt.datetime.now() - started).total_seconds() * 1000))
+                logging.info('%r made in %.0f ms' % (self, (dt.datetime.now() - started).total_seconds() * 1000))
             else:
                 logging.info('Cannot make %s ' % self.name)
         except:
@@ -744,7 +744,17 @@ class BaseModel(BaseFeature):
         y_pred = np.array(y_pred)
         metricresults = {'Number of test samples': len(y_test)}
         for metricfoo in self.metrics:
-            metricresults[metricfoo.__name__] = metricfoo(y_test, y_pred)
+            if 'average' in inspect.getfullargspec(metricfoo).args or inspect.getfullargspec(metricfoo).varkw is not \
+                    None:
+                value = metricfoo(y_test, y_pred, average=None)
+                if isinstance(value, np.ndarray):
+                    value = value.tolist()
+                metricresults[metricfoo.__name__] = value
+            else:
+                value = metricfoo(y_test, y_pred)
+                if isinstance(value, np.ndarray):
+                    value = value.tolist()
+                metricresults[metricfoo.__name__] = value
 
         return metricresults, y_pred, y_test
 
@@ -762,10 +772,19 @@ class BaseModel(BaseFeature):
         print()
         print('Evaluation of ' + repr(self))
         print('--------------------------------------------------------------------------------')
-        for temp in sorted(metricresults.keys()):
-            print('%s\t%s' % (temp, str(metricresults[temp])))
+        print_metric_results(metricresults)
 
         return metricresults, y_pred, y_test
+
+
+def print_metric_results(results):
+    items = sorted(
+        [item for item in results.items() if 'importance' in item[0]],
+    key=lambda item: item[1], reverse=True) + sorted(
+        [item for item in results.items() if 'importance' not in item[0]],
+    key=lambda item: item[0])
+    for item in items:
+        print('%s\t%s' % item)
 
 
 class RulePrediction(BasePrediction):
